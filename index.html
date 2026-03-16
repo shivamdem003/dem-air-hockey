@@ -2,176 +2,183 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Online Air Hockey - Peer2Peer</title>
+    <title>Online Air Hockey - Full Movement</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
-        body { background: #111; color: #0ff; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-        #menu { margin-bottom: 20px; background: #222; padding: 15px; border-radius: 8px; border: 1px solid #444; }
-        canvas { border: 4px solid #444; background: black; cursor: crosshair; }
-        .status { margin-top: 10px; font-size: 0.9rem; color: #888; }
-        button { background: #0ff; border: none; padding: 5px 15px; cursor: pointer; font-weight: bold; }
-        input { background: #333; border: 1px solid #555; color: white; padding: 5px; }
+        body { background: #111; color: #0ff; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; overflow: hidden; }
+        #menu { margin-bottom: 15px; background: #222; padding: 15px; border-radius: 12px; border: 1px solid #0ff; box-shadow: 0 0 10px rgba(0,255,255,0.2); display: flex; gap: 10px; align-items: center; }
+        canvas { border: 4px solid #444; background: radial-gradient(circle, #1a1a1a 0%, #000 100%); cursor: none; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+        .score { font-size: 2.5rem; font-weight: bold; margin: 10px; text-shadow: 0 0 10px #0ff; }
+        button { background: #0ff; border: none; padding: 8px 15px; cursor: pointer; font-weight: bold; border-radius: 4px; transition: 0.3s; }
+        button:hover { background: #fff; box-shadow: 0 0 15px #0ff; }
+        input { background: #333; border: 1px solid #555; color: white; padding: 8px; border-radius: 4px; outline: none; }
+        #status { color: #888; margin-top: 10px; font-style: italic; }
     </style>
 </head>
 <body>
 
     <div id="menu">
-        <div id="peer-id-display">Your ID: <strong id="my-id">...</strong></div>
-        <input type="text" id="remote-id" placeholder="Friend's ID">
-        <button onclick="connectToFriend()">Connect to Friend</button>
+        <div id="id-tag">My ID: <strong id="my-id" style="color:white">...</strong></div>
+        <input type="text" id="remote-id" placeholder="Paste Friend's ID">
+        <button onclick="connectToFriend()">Connect</button>
     </div>
 
-    <div id="score">0 : 0</div>
+    <div class="score"><span id="s1">0</span> : <span id="s2">0</span></div>
     <canvas id="gameCanvas" width="800" height="500"></canvas>
-    <div class="status" id="status">Status: Waiting for connection...</div>
+    <div id="status">Waiting for connection...</div>
 
 <script>
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
-    const statusBox = document.getElementById('status');
-    
-    // PeerJS Setup
     const peer = new Peer(); 
     let conn;
     let isHost = false;
 
-    // Game Objects
+    // Game Constants
     const goalHeight = 160;
     const goalTop = (canvas.height - goalHeight) / 2;
     const goalBottom = goalTop + goalHeight;
-    const puck = { x: 400, y: 250, dx: 0, dy: 0, radius: 15 };
-    const p1 = { y: 250, radius: 30 }; // Left Player
-    const p2 = { y: 250, radius: 30 }; // Right Player
+    
+    // Game State
     let scores = { p1: 0, p2: 0 };
+    const puck = { x: 400, y: 250, dx: 0, dy: 0, radius: 15, friction: 0.99 };
+    const p1 = { x: 100, y: 250, radius: 30 }; // Host (Blue)
+    const p2 = { x: 700, y: 250, radius: 30 }; // Client (Pink)
 
-    // Get Peer ID
-    peer.on('open', id => {
-        document.getElementById('my-id').innerText = id;
-    });
+    peer.on('open', id => document.getElementById('my-id').innerText = id);
 
-    // Handle Incoming Connection (You are the Host)
     peer.on('connection', c => {
         conn = c;
         isHost = true;
         setupConnection();
     });
 
-    // Handle Outgoing Connection (You are the Joiner)
     function connectToFriend() {
-        const remoteId = document.getElementById('remote-id').value;
-        conn = peer.connect(remoteId);
+        conn = peer.connect(document.getElementById('remote-id').value);
         isHost = false;
         setupConnection();
     }
 
     function setupConnection() {
         conn.on('open', () => {
-            statusBox.innerText = "Status: Connected! Playing...";
+            document.getElementById('status').innerText = "Status: Connected!";
+            if(isHost) resetPuck();
             gameLoop();
         });
 
         conn.on('data', data => {
             if (isHost) {
-                // Host receives Client's paddle position
-                p2.y = data.p2Y;
+                p2.x = data.x; p2.y = data.y;
             } else {
-                // Client receives Host's game state
-                p1.y = data.p1Y;
-                puck.x = data.puckX;
-                puck.y = data.puckY;
+                p1.x = data.p1.x; p1.y = data.p1.y;
+                puck.x = data.puck.x; puck.y = data.puck.y;
                 scores = data.scores;
+                document.getElementById('s1').innerText = scores.p1;
+                document.getElementById('s2').innerText = scores.p2;
             }
         });
     }
 
-    // Mouse Tracking
     canvas.addEventListener('mousemove', e => {
         const rect = canvas.getBoundingClientRect();
-        const mouseY = e.clientY - rect.top;
-        if (isHost) p1.y = mouseY; else p2.y = mouseY;
+        let mx = e.clientX - rect.left;
+        let my = e.clientY - rect.top;
 
-        // Send position to peer
-        if (conn && conn.open) {
-            if (isHost) conn.send({ p1Y: p1.y });
-            else conn.send({ p2Y: p2.y });
+        if (isHost) {
+            p1.x = Math.min(mx, canvas.width/2 - p1.radius);
+            p1.y = my;
+            if (conn && conn.open) conn.send({ x: p1.x, y: p1.y });
+        } else {
+            p2.x = Math.max(mx, canvas.width/2 + p2.radius);
+            p2.y = my;
+            if (conn && conn.open) conn.send({ x: p2.x, y: p2.y });
         }
     });
 
-    function updateLogic() {
-        if (!isHost) return; // Only host calculates physics
+    function checkCollision(paddle, pk) {
+        let dx = pk.x - paddle.x;
+        let dy = pk.y - paddle.y;
+        let distance = Math.sqrt(dx*dx + dy*dy);
 
-        // Simple Puck Physics
-        puck.x += puck.dx; puck.y += puck.dy;
-        puck.dx *= 0.99; puck.dy *= 0.99;
+        if (distance < paddle.radius + pk.radius) {
+            let angle = Math.atan2(dy, dx);
+            let speed = Math.sqrt(pk.dx**2 + pk.dy**2) + 2; 
+            if (speed > 12) speed = 12;
 
-        // Wall Bounces
-        if (puck.y < 0 || puck.y > canvas.height) puck.dy *= -1;
-
-        // Scoring & Bounces (Simplified for networking)
-        if (puck.x < 0) {
-            if (puck.y > goalTop && puck.y < goalBottom) { scores.p2++; resetPuck(); }
-            else { puck.dx *= -1; puck.x = 5; }
-        }
-        if (puck.x > canvas.width) {
-            if (puck.y > goalTop && puck.y < goalBottom) { scores.p1++; resetPuck(); }
-            else { puck.dx *= -1; puck.x = canvas.width - 5; }
-        }
-
-        // Paddle Collisions (Host side)
-        checkPaddle(100, p1.y, puck);
-        checkPaddle(700, p2.y, puck);
-
-        // Host sends full state to Client
-        conn.send({ 
-            p1Y: p1.y, 
-            puckX: puck.x, 
-            puckY: puck.y, 
-            scores: scores 
-        });
-    }
-
-    function checkPaddle(px, py, pk) {
-        let dx = pk.x - px; let dy = pk.y - py;
-        if (Math.sqrt(dx*dx + dy*dy) < 45) {
-            pk.dx = (pk.x - px) * 0.2;
-            pk.dy = (pk.y - py) * 0.2;
+            pk.dx = Math.cos(angle) * speed;
+            pk.dy = Math.sin(angle) * speed;
+            
+            // Prevent sticking
+            pk.x = paddle.x + Math.cos(angle) * (paddle.radius + pk.radius + 1);
+            pk.y = paddle.y + Math.sin(angle) * (paddle.radius + pk.radius + 1);
         }
     }
 
     function resetPuck() {
         puck.x = 400; puck.y = 250;
-        puck.dx = (Math.random() > 0.5 ? 5 : -5);
-        puck.dy = (Math.random() - 0.5) * 5;
+        puck.dx = (Math.random() > 0.5 ? 4 : -4);
+        puck.dy = (Math.random() - 0.5) * 6;
+    }
+
+    function update() {
+        if (!isHost) return;
+
+        puck.x += puck.dx; puck.y += puck.dy;
+        puck.dx *= puck.friction; puck.dy *= puck.friction;
+
+        if (puck.y < puck.radius || puck.y > canvas.height - puck.radius) puck.dy *= -1;
+
+        // Scoring
+        if (puck.x < 0) {
+            if (puck.y > goalTop && puck.y < goalBottom) { scores.p2++; resetPuck(); }
+            else { puck.dx *= -1; puck.x = puck.radius; }
+        }
+        if (puck.x > canvas.width) {
+            if (puck.y > goalTop && puck.y < goalBottom) { scores.p1++; resetPuck(); }
+            else { puck.dx *= -1; puck.x = canvas.width - puck.radius; }
+        }
+
+        checkCollision(p1, puck);
+        checkCollision(p2, puck);
+
+        document.getElementById('s1').innerText = scores.p1;
+        document.getElementById('s2').innerText = scores.p2;
+
+        conn.send({ p1: p1, puck: puck, scores: scores });
     }
 
     function draw() {
-        ctx.fillStyle = 'black';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        // Table Markings
+        ctx.strokeStyle = '#333';
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(canvas.width/2, 0); ctx.lineTo(canvas.width/2, canvas.height); ctx.stroke();
+        ctx.beginPath(); ctx.arc(canvas.width/2, canvas.height/2, 50, 0, Math.PI*2); ctx.stroke();
 
         // Goals
-        ctx.strokeStyle = '#0ff'; ctx.strokeRect(0, goalTop, 5, goalHeight);
-        ctx.strokeStyle = '#f07'; ctx.strokeRect(canvas.width-5, goalTop, 5, goalHeight);
+        ctx.lineWidth = 8;
+        ctx.strokeStyle = '#0ff'; ctx.strokeRect(0, goalTop, 4, goalHeight);
+        ctx.strokeStyle = '#f07'; ctx.strokeRect(canvas.width-4, goalTop, 4, goalHeight);
 
         // Puck
-        ctx.fillStyle = 'white';
+        ctx.fillStyle = '#fff';
+        ctx.shadowBlur = 10; ctx.shadowColor = '#fff';
         ctx.beginPath(); ctx.arc(puck.x, puck.y, puck.radius, 0, Math.PI*2); ctx.fill();
 
         // Paddles
-        ctx.fillStyle = '#0ff';
-        ctx.beginPath(); ctx.arc(100, p1.y, p1.radius, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = '#f07';
-        ctx.beginPath(); ctx.arc(700, p2.y, p2.radius, 0, Math.PI*2); ctx.fill();
-
-        document.getElementById('score').innerText = `${scores.p1} : ${scores.p2}`;
+        ctx.shadowBlur = 15;
+        ctx.fillStyle = '#0ff'; ctx.shadowColor = '#0ff';
+        ctx.beginPath(); ctx.arc(p1.x, p1.y, p1.radius, 0, Math.PI*2); ctx.fill();
         
-        if (isHost) updateLogic();
+        ctx.fillStyle = '#f07'; ctx.shadowColor = '#f07';
+        ctx.beginPath(); ctx.arc(p2.x, p2.y, p2.radius, 0, Math.PI*2); ctx.fill();
+
+        if (isHost) update();
         requestAnimationFrame(draw);
     }
 
-    function gameLoop() {
-        if (isHost) resetPuck();
-        draw();
-    }
+    function gameLoop() { draw(); }
 </script>
 </body>
 </html>
