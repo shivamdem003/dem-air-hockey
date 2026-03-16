@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Online Air Hockey - Peer2Peer</title>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <style>
+        body { background: #111; color: #0ff; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+        #menu { margin-bottom: 20px; background: #222; padding: 15px; border-radius: 8px; border: 1px solid #444; }
+        canvas { border: 4px solid #444; background: black; cursor: crosshair; }
+        .status { margin-top: 10px; font-size: 0.9rem; color: #888; }
+        button { background: #0ff; border: none; padding: 5px 15px; cursor: pointer; font-weight: bold; }
+        input { background: #333; border: 1px solid #555; color: white; padding: 5px; }
+    </style>
+</head>
+<body>
+
+    <div id="menu">
+        <div id="peer-id-display">Your ID: <strong id="my-id">...</strong></div>
+        <input type="text" id="remote-id" placeholder="Friend's ID">
+        <button onclick="connectToFriend()">Connect to Friend</button>
+    </div>
+
+    <div id="score">0 : 0</div>
+    <canvas id="gameCanvas" width="800" height="500"></canvas>
+    <div class="status" id="status">Status: Waiting for connection...</div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const statusBox = document.getElementById('status');
+    
+    // PeerJS Setup
+    const peer = new Peer(); 
+    let conn;
+    let isHost = false;
+
+    // Game Objects
+    const goalHeight = 160;
+    const goalTop = (canvas.height - goalHeight) / 2;
+    const goalBottom = goalTop + goalHeight;
+    const puck = { x: 400, y: 250, dx: 0, dy: 0, radius: 15 };
+    const p1 = { y: 250, radius: 30 }; // Left Player
+    const p2 = { y: 250, radius: 30 }; // Right Player
+    let scores = { p1: 0, p2: 0 };
+
+    // Get Peer ID
+    peer.on('open', id => {
+        document.getElementById('my-id').innerText = id;
+    });
+
+    // Handle Incoming Connection (You are the Host)
+    peer.on('connection', c => {
+        conn = c;
+        isHost = true;
+        setupConnection();
+    });
+
+    // Handle Outgoing Connection (You are the Joiner)
+    function connectToFriend() {
+        const remoteId = document.getElementById('remote-id').value;
+        conn = peer.connect(remoteId);
+        isHost = false;
+        setupConnection();
+    }
+
+    function setupConnection() {
+        conn.on('open', () => {
+            statusBox.innerText = "Status: Connected! Playing...";
+            gameLoop();
+        });
+
+        conn.on('data', data => {
+            if (isHost) {
+                // Host receives Client's paddle position
+                p2.y = data.p2Y;
+            } else {
+                // Client receives Host's game state
+                p1.y = data.p1Y;
+                puck.x = data.puckX;
+                puck.y = data.puckY;
+                scores = data.scores;
+            }
+        });
+    }
+
+    // Mouse Tracking
+    canvas.addEventListener('mousemove', e => {
+        const rect = canvas.getBoundingClientRect();
+        const mouseY = e.clientY - rect.top;
+        if (isHost) p1.y = mouseY; else p2.y = mouseY;
+
+        // Send position to peer
+        if (conn && conn.open) {
+            if (isHost) conn.send({ p1Y: p1.y });
+            else conn.send({ p2Y: p2.y });
+        }
+    });
+
+    function updateLogic() {
+        if (!isHost) return; // Only host calculates physics
+
+        // Simple Puck Physics
+        puck.x += puck.dx; puck.y += puck.dy;
+        puck.dx *= 0.99; puck.dy *= 0.99;
+
+        // Wall Bounces
+        if (puck.y < 0 || puck.y > canvas.height) puck.dy *= -1;
+
+        // Scoring & Bounces (Simplified for networking)
+        if (puck.x < 0) {
+            if (puck.y > goalTop && puck.y < goalBottom) { scores.p2++; resetPuck(); }
+            else { puck.dx *= -1; puck.x = 5; }
+        }
+        if (puck.x > canvas.width) {
+            if (puck.y > goalTop && puck.y < goalBottom) { scores.p1++; resetPuck(); }
+            else { puck.dx *= -1; puck.x = canvas.width - 5; }
+        }
+
+        // Paddle Collisions (Host side)
+        checkPaddle(100, p1.y, puck);
+        checkPaddle(700, p2.y, puck);
+
+        // Host sends full state to Client
+        conn.send({ 
+            p1Y: p1.y, 
+            puckX: puck.x, 
+            puckY: puck.y, 
+            scores: scores 
+        });
+    }
+
+    function checkPaddle(px, py, pk) {
+        let dx = pk.x - px; let dy = pk.y - py;
+        if (Math.sqrt(dx*dx + dy*dy) < 45) {
+            pk.dx = (pk.x - px) * 0.2;
+            pk.dy = (pk.y - py) * 0.2;
+        }
+    }
+
+    function resetPuck() {
+        puck.x = 400; puck.y = 250;
+        puck.dx = (Math.random() > 0.5 ? 5 : -5);
+        puck.dy = (Math.random() - 0.5) * 5;
+    }
+
+    function draw() {
+        ctx.fillStyle = 'black';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Goals
+        ctx.strokeStyle = '#0ff'; ctx.strokeRect(0, goalTop, 5, goalHeight);
+        ctx.strokeStyle = '#f07'; ctx.strokeRect(canvas.width-5, goalTop, 5, goalHeight);
+
+        // Puck
+        ctx.fillStyle = 'white';
+        ctx.beginPath(); ctx.arc(puck.x, puck.y, puck.radius, 0, Math.PI*2); ctx.fill();
+
+        // Paddles
+        ctx.fillStyle = '#0ff';
+        ctx.beginPath(); ctx.arc(100, p1.y, p1.radius, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#f07';
+        ctx.beginPath(); ctx.arc(700, p2.y, p2.radius, 0, Math.PI*2); ctx.fill();
+
+        document.getElementById('score').innerText = `${scores.p1} : ${scores.p2}`;
+        
+        if (isHost) updateLogic();
+        requestAnimationFrame(draw);
+    }
+
+    function gameLoop() {
+        if (isHost) resetPuck();
+        draw();
+    }
+</script>
+</body>
+</html>
