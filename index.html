@@ -2,30 +2,30 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Pro Air Hockey - Online</title>
+    <title>Online Air Hockey - Full Movement</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
-        body { background: #050505; color: #0ff; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; overflow: hidden; }
-        #menu { margin-bottom: 10px; background: #111; padding: 12px 20px; border-radius: 30px; border: 1px solid #333; display: flex; gap: 15px; align-items: center; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
-        canvas { border: 6px solid #222; border-radius: 10px; background: radial-gradient(circle, #1a1a1a 0%, #000 100%); cursor: none; box-shadow: 0 0 40px rgba(0,255,255,0.1); }
-        .score { font-size: 3rem; font-weight: 800; margin: 5px; font-variant-numeric: tabular-nums; letter-spacing: 10px; }
-        button { background: #0ff; border: none; padding: 8px 20px; cursor: pointer; font-weight: bold; border-radius: 20px; transition: 0.2s; color: #000; }
-        button:hover { transform: scale(1.05); background: #fff; }
-        input { background: #222; border: 1px solid #444; color: white; padding: 8px 12px; border-radius: 20px; outline: none; width: 120px; }
-        #status { color: #555; margin-top: 10px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; }
+        body { background: #111; color: #0ff; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; overflow: hidden; }
+        #menu { margin-bottom: 15px; background: #222; padding: 15px; border-radius: 12px; border: 1px solid #0ff; box-shadow: 0 0 10px rgba(0,255,255,0.2); display: flex; gap: 10px; align-items: center; }
+        canvas { border: 4px solid #444; background: radial-gradient(circle, #1a1a1a 0%, #000 100%); cursor: none; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+        .score { font-size: 2.5rem; font-weight: bold; margin: 10px; text-shadow: 0 0 10px #0ff; }
+        button { background: #0ff; border: none; padding: 8px 15px; cursor: pointer; font-weight: bold; border-radius: 4px; transition: 0.3s; }
+        button:hover { background: #fff; box-shadow: 0 0 15px #0ff; }
+        input { background: #333; border: 1px solid #555; color: white; padding: 8px; border-radius: 4px; outline: none; }
+        #status { color: #888; margin-top: 10px; font-style: italic; }
     </style>
 </head>
 <body>
 
     <div id="menu">
-        <div id="id-tag">ID: <strong id="my-id" style="color:#0ff">...</strong></div>
-        <input type="text" id="remote-id" placeholder="Friend ID">
-        <button onclick="connectToFriend()">JOIN GAME</button>
+        <div id="id-tag">My ID: <strong id="my-id" style="color:white">...</strong></div>
+        <input type="text" id="remote-id" placeholder="Paste Friend's ID">
+        <button onclick="connectToFriend()">Connect</button>
     </div>
 
-    <div class="score"><span id="s1">0</span><span style="color:#333"> : </span><span id="s2">0</span></div>
-    <canvas id="gameCanvas" width="1000" height="600"></canvas>
-    <div id="status">Connecting to network...</div>
+    <div class="score"><span id="s1">0</span> : <span id="s2">0</span></div>
+    <canvas id="gameCanvas" width="800" height="500"></canvas>
+    <div id="status">Waiting for connection...</div>
 
 <script>
     const canvas = document.getElementById('gameCanvas');
@@ -34,32 +34,27 @@
     let conn;
     let isHost = false;
 
-    // Table Setup
-    const goalHeight = 200;
+    // Game Constants
+    const goalHeight = 160;
     const goalTop = (canvas.height - goalHeight) / 2;
     const goalBottom = goalTop + goalHeight;
     
-    // Smooth Physics Config
-    const SUBSTEPS = 3; // Physics resolution
+    // Game State
     let scores = { p1: 0, p2: 0 };
-    const puck = { x: 500, y: 300, dx: 0, dy: 0, radius: 18, friction: 0.992 };
-    const p1 = { x: 150, y: 300, radius: 35 }; 
-    const p2 = { x: 850, y: 300, radius: 35 };
+    const puck = { x: 400, y: 250, dx: 0, dy: 0, radius: 15, friction: 0.99 };
+    const p1 = { x: 100, y: 250, radius: 30 }; // Host (Blue)
+    const p2 = { x: 700, y: 250, radius: 30 }; // Client (Pink)
 
-    peer.on('open', id => {
-        document.getElementById('my-id').innerText = id;
-        document.getElementById('status').innerText = "Status: Online (Ready)";
-    });
+    peer.on('open', id => document.getElementById('my-id').innerText = id);
 
     peer.on('connection', c => {
-        conn = c; isHost = true;
+        conn = c;
+        isHost = true;
         setupConnection();
     });
 
     function connectToFriend() {
-        const id = document.getElementById('remote-id').value;
-        if(!id) return;
-        conn = peer.connect(id);
+        conn = peer.connect(document.getElementById('remote-id').value);
         isHost = false;
         setupConnection();
     }
@@ -100,54 +95,40 @@
         }
     });
 
-    function resolveCollision(paddle, pk) {
+    function checkCollision(paddle, pk) {
         let dx = pk.x - paddle.x;
         let dy = pk.y - paddle.y;
         let distance = Math.sqrt(dx*dx + dy*dy);
 
         if (distance < paddle.radius + pk.radius) {
             let angle = Math.atan2(dy, dx);
-            // Transfer paddle "vibe" to puck
-            let speed = Math.sqrt(pk.dx**2 + pk.dy**2) + 2.5; 
-            if (speed > 16) speed = 16; 
+            let speed = Math.sqrt(pk.dx**2 + pk.dy**2) + 2; 
+            if (speed > 12) speed = 12;
 
             pk.dx = Math.cos(angle) * speed;
             pk.dy = Math.sin(angle) * speed;
             
-            // Push out to prevent overlap stuck
-            let overlap = (paddle.radius + pk.radius) - distance;
-            pk.x += Math.cos(angle) * (overlap + 1);
-            pk.y += Math.sin(angle) * (overlap + 1);
+            // Prevent sticking
+            pk.x = paddle.x + Math.cos(angle) * (paddle.radius + pk.radius + 1);
+            pk.y = paddle.y + Math.sin(angle) * (paddle.radius + pk.radius + 1);
         }
     }
 
     function resetPuck() {
-        puck.x = 500; puck.y = 300;
-        puck.dx = (Math.random() > 0.5 ? 5 : -5);
-        puck.dy = (Math.random() - 0.5) * 8;
+        puck.x = 400; puck.y = 250;
+        puck.dx = (Math.random() > 0.5 ? 4 : -4);
+        puck.dy = (Math.random() - 0.5) * 6;
     }
 
     function update() {
         if (!isHost) return;
 
-        // Sub-stepping for ultra smooth motion
-        for(let i=0; i < SUBSTEPS; i++) {
-            puck.x += (puck.dx / SUBSTEPS);
-            puck.y += (puck.dy / SUBSTEPS);
+        puck.x += puck.dx; puck.y += puck.dy;
+        puck.dx *= puck.friction; puck.dy *= puck.friction;
 
-            // Bounds check inside sub-steps
-            if (puck.y < puck.radius || puck.y > canvas.height - puck.radius) {
-                puck.dy *= -1;
-                puck.y = puck.y < puck.radius ? puck.radius : canvas.height - puck.radius;
-            }
-            resolveCollision(p1, puck);
-            resolveCollision(p2, puck);
-        }
+        if (puck.y < puck.radius || puck.y > canvas.height - puck.radius) puck.dy *= -1;
 
-        puck.dx *= puck.friction;
-        puck.dy *= puck.friction;
-
-        // Scoring Logic
+        // Scoring
         if (puck.x < 0) {
             if (puck.y > goalTop && puck.y < goalBottom) { scores.p2++; resetPuck(); }
             else { puck.dx *= -1; puck.x = puck.radius; }
@@ -157,41 +138,41 @@
             else { puck.dx *= -1; puck.x = canvas.width - puck.radius; }
         }
 
+        checkCollision(p1, puck);
+        checkCollision(p2, puck);
+
         document.getElementById('s1').innerText = scores.p1;
         document.getElementById('s2').innerText = scores.p2;
 
-        if (conn && conn.open) {
-            conn.send({ p1: p1, puck: puck, scores: scores });
-        }
+        conn.send({ p1: p1, puck: puck, scores: scores });
     }
 
     function draw() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         
-        // Field Markings
-        ctx.strokeStyle = '#222';
-        ctx.lineWidth = 4;
+        // Table Markings
+        ctx.strokeStyle = '#333';
+        ctx.lineWidth = 2;
         ctx.beginPath(); ctx.moveTo(canvas.width/2, 0); ctx.lineTo(canvas.width/2, canvas.height); ctx.stroke();
-        ctx.beginPath(); ctx.arc(canvas.width/2, canvas.height/2, 80, 0, Math.PI*2); ctx.stroke();
+        ctx.beginPath(); ctx.arc(canvas.width/2, canvas.height/2, 50, 0, Math.PI*2); ctx.stroke();
 
-        // Goal Slots
-        ctx.lineWidth = 10;
+        // Goals
+        ctx.lineWidth = 8;
         ctx.strokeStyle = '#0ff'; ctx.strokeRect(0, goalTop, 4, goalHeight);
         ctx.strokeStyle = '#f07'; ctx.strokeRect(canvas.width-4, goalTop, 4, goalHeight);
 
         // Puck
         ctx.fillStyle = '#fff';
-        ctx.shadowBlur = 15; ctx.shadowColor = '#fff';
+        ctx.shadowBlur = 10; ctx.shadowColor = '#fff';
         ctx.beginPath(); ctx.arc(puck.x, puck.y, puck.radius, 0, Math.PI*2); ctx.fill();
-        ctx.shadowBlur = 0;
 
         // Paddles
-        ctx.fillStyle = '#0ff'; ctx.shadowBlur = 25; ctx.shadowColor = '#0ff';
+        ctx.shadowBlur = 15;
+        ctx.fillStyle = '#0ff'; ctx.shadowColor = '#0ff';
         ctx.beginPath(); ctx.arc(p1.x, p1.y, p1.radius, 0, Math.PI*2); ctx.fill();
         
         ctx.fillStyle = '#f07'; ctx.shadowColor = '#f07';
         ctx.beginPath(); ctx.arc(p2.x, p2.y, p2.radius, 0, Math.PI*2); ctx.fill();
-        ctx.shadowBlur = 0;
 
         if (isHost) update();
         requestAnimationFrame(draw);
