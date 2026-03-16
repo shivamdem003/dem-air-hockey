@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Air Hockey - Best of 3</title>
+    <title>Air Hockey - Ultra Smooth Sync</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         body { background: #111; color: #0ff; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; overflow: hidden; }
@@ -34,9 +34,7 @@
             <div class="score" id="s1">0</div>
             <div id="series-p1" class="series-dots">● ●</div>
         </div>
-        
         <div class="round-display">ROUND <span id="round-num">1</span></div>
-
         <div style="display: flex; flex-direction: column; align-items: center;">
             <div class="score" id="s2" style="color:#f0f; text-shadow: 0 0 10px #f0f;">0</div>
             <div id="series-p2" class="series-dots p2">● ●</div>
@@ -60,14 +58,14 @@
     let isHost = false;
     let gameActive = true;
 
-    // Game Constants
+    // Constants
     const goalHeight = 160;
     const goalTop = (canvas.height - goalHeight) / 2;
     const goalBottom = goalTop + goalHeight;
     const WIN_SCORE = 13;
-    const SERIES_TO_WIN = 2; // Best of 3 means first to 2
+    const SERIES_TO_WIN = 2;
     
-    // Game State
+    // State
     let currentRound = 1;
     let scores = { p1: 0, p2: 0 };
     let seriesPoints = { p1: 0, p2: 0 };
@@ -87,11 +85,16 @@
     function setupConnection() {
         conn.on('open', () => {
             document.getElementById('status').innerText = "Status: Connected!";
-            if(isHost) { resetPuck(); gameLoop(); }
+            gameLoop();
+            if(isHost) resetPuck();
         });
+
         conn.on('data', data => {
-            if (isHost) { p2.x = data.x; p2.y = data.y; } 
-            else {
+            if (isHost) {
+                // Host only cares where Client's paddle is
+                p2.x = data.x; p2.y = data.y;
+            } else {
+                // Client gets physics from Host, but keeps their own p2 position
                 p1.x = data.p1.x; p1.y = data.p1.y;
                 puck.x = data.puck.x; puck.y = data.puck.y;
                 scores = data.scores;
@@ -99,71 +102,26 @@
                 currentRound = data.round;
                 gameActive = data.gameActive;
                 updateUI();
-                if (gameActive) gameLoop();
             }
         });
     }
 
-    function updateUI() {
-        document.getElementById('s1').innerText = scores.p1;
-        document.getElementById('s2').innerText = scores.p2;
-        document.getElementById('round-num').innerText = currentRound;
-        
-        // Update Series Dots
-        const renderDots = (id, points) => {
-            let dots = "";
-            for(let i=0; i<SERIES_TO_WIN; i++) dots += `<span class="${i < points ? 'won' : ''}">●</span> `;
-            document.getElementById(id).innerHTML = dots;
-        };
-        renderDots('series-p1', seriesPoints.p1);
-        renderDots('series-p2', seriesPoints.p2);
+    canvas.addEventListener('mousemove', e => {
+        if (!gameActive) return;
+        const rect = canvas.getBoundingClientRect();
+        const mx = e.clientX - rect.left;
+        const my = e.clientY - rect.top;
 
-        document.getElementById('overlay').style.display = gameActive ? 'none' : 'block';
-    }
-
-    function resetPuck() {
-        puck.x = 400; puck.y = 250;
-        puck.dx = (Math.random() > 0.5 ? 5 : -5);
-        puck.dy = (Math.random() - 0.5) * 8;
-    }
-
-    function resetFullMatch() {
-        seriesPoints = { p1: 0, p2: 0 };
-        currentRound = 1;
-        scores = { p1: 0, p2: 0 };
-        gameActive = true;
-        document.getElementById('restart-btn').style.display = 'none';
-        resetPuck();
-        updateUI();
-    }
-
-    function startNewRound(winnerName) {
-        gameActive = false;
-        const pKey = (winnerName === "PLAYER 1") ? 'p1' : 'p2';
-        seriesPoints[pKey]++;
-        
-        const isMatchOver = seriesPoints[pKey] >= SERIES_TO_WIN;
-        
-        document.getElementById('winner-text').innerText = isMatchOver ? winnerName + " WINS THE MATCH!" : winnerName + " WINS THE ROUND!";
-        document.getElementById('winner-text').style.color = (pKey === 'p1') ? "#0ff" : "#f0f";
-        document.getElementById('sub-text').innerText = isMatchOver ? "Series Complete" : "Next round starting in 3 seconds...";
-        
-        if (isMatchOver && isHost) {
-            document.getElementById('restart-btn').style.display = 'inline-block';
+        if (isHost) {
+            p1.x = Math.min(mx, canvas.width/2 - p1.radius);
+            p1.y = Math.max(p1.radius, Math.min(canvas.height - p1.radius, my));
+        } else {
+            // Client moves their paddle LOCALLY for instant response
+            p2.x = Math.max(mx, canvas.width/2 + p2.radius);
+            p2.y = Math.max(p2.radius, Math.min(canvas.height - p2.radius, my));
+            if (conn && conn.open) conn.send({ x: p2.x, y: p2.y });
         }
-
-        updateUI();
-        
-        if (!isMatchOver) {
-            setTimeout(() => {
-                scores.p1 = 0; scores.p2 = 0;
-                currentRound++;
-                gameActive = true;
-                resetPuck();
-                updateUI();
-            }, 3000);
-        }
-    }
+    });
 
     function update() {
         if (!isHost || !gameActive) return;
@@ -171,10 +129,11 @@
         puck.x += puck.dx; puck.y += puck.dy;
         puck.dx *= puck.friction; puck.dy *= puck.friction;
 
-        // Wall collisions
+        // Bounce Top/Bottom
         if (puck.y < puck.radius) { puck.y = puck.radius; puck.dy *= -1; }
         else if (puck.y > canvas.height - puck.radius) { puck.y = canvas.height - puck.radius; puck.dy *= -1; }
 
+        // Scoring Logic
         if (puck.x < puck.radius) {
             if (puck.y > goalTop && puck.y < goalBottom) {
                 scores.p2++; 
@@ -182,7 +141,6 @@
                 else resetPuck();
             } else { puck.x = puck.radius; puck.dx *= -1; }
         }
-        
         if (puck.x > canvas.width - puck.radius) {
             if (puck.y > goalTop && puck.y < goalBottom) {
                 scores.p1++;
@@ -194,7 +152,10 @@
         checkCollision(p1, puck);
         checkCollision(p2, puck);
         updateUI();
-        if (conn && conn.open) conn.send({ p1, puck, scores, series: seriesPoints, round: currentRound, gameActive });
+
+        if (conn && conn.open) {
+            conn.send({ p1, puck, scores, series: seriesPoints, round: currentRound, gameActive });
+        }
     }
 
     function checkCollision(paddle, pk) {
@@ -211,33 +172,64 @@
         }
     }
 
-    canvas.addEventListener('mousemove', e => {
-        if (!gameActive) return;
-        const rect = canvas.getBoundingClientRect();
-        if (isHost) {
-            p1.x = Math.min(e.clientX - rect.left, canvas.width/2 - p1.radius);
-            p1.y = Math.max(p1.radius, Math.min(canvas.height - p1.radius, e.clientY - rect.top));
-        } else {
-            p2.x = Math.max(e.clientX - rect.left, canvas.width/2 + p2.radius);
-            p2.y = Math.max(p2.radius, Math.min(canvas.height - p2.radius, e.clientY - rect.top));
-            if (conn && conn.open) conn.send({ x: p2.x, y: p2.y });
+    function updateUI() {
+        document.getElementById('s1').innerText = scores.p1;
+        document.getElementById('s2').innerText = scores.p2;
+        document.getElementById('round-num').innerText = currentRound;
+        const renderDots = (id, pts) => {
+            let dots = "";
+            for(let i=0; i<SERIES_TO_WIN; i++) dots += `<span class="${i < pts ? 'won' : ''}">●</span> `;
+            document.getElementById(id).innerHTML = dots;
+        };
+        renderDots('series-p1', seriesPoints.p1);
+        renderDots('series-p2', seriesPoints.p2);
+        document.getElementById('overlay').style.display = gameActive ? 'none' : 'block';
+    }
+
+    function resetPuck() {
+        puck.x = 400; puck.y = 250;
+        puck.dx = (Math.random() > 0.5 ? 5 : -5);
+        puck.dy = (Math.random() - 0.5) * 8;
+    }
+
+    function startNewRound(winner) {
+        gameActive = false;
+        const pKey = (winner === "PLAYER 1") ? 'p1' : 'p2';
+        seriesPoints[pKey]++;
+        const isMatchOver = seriesPoints[pKey] >= SERIES_TO_WIN;
+        document.getElementById('winner-text').innerText = isMatchOver ? winner + " WINS THE MATCH!" : winner + " WINS THE ROUND!";
+        document.getElementById('winner-text').style.color = (pKey === 'p1') ? "#0ff" : "#f0f";
+        if (isMatchOver && isHost) document.getElementById('restart-btn').style.display = 'inline-block';
+        updateUI();
+        if (!isMatchOver) {
+            setTimeout(() => {
+                scores.p1 = 0; scores.p2 = 0;
+                currentRound++; gameActive = true;
+                resetPuck(); updateUI();
+            }, 3000);
         }
-    });
+    }
+
+    function resetFullMatch() {
+        seriesPoints = { p1: 0, p2: 0 };
+        currentRound = 1; scores = { p1: 0, p2: 0 };
+        gameActive = true;
+        document.getElementById('restart-btn').style.display = 'none';
+        resetPuck(); updateUI();
+    }
 
     function draw() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.strokeStyle = '#222'; ctx.lineWidth = 5;
+        // Table Details
+        ctx.strokeStyle = '#222'; ctx.lineWidth = 4;
         ctx.beginPath(); ctx.arc(400, 250, 80, 0, Math.PI*2); ctx.stroke();
         ctx.setLineDash([10, 10]);
         ctx.beginPath(); ctx.moveTo(400, 0); ctx.lineTo(400, canvas.height); ctx.stroke();
         ctx.setLineDash([]);
-        
-        ctx.strokeStyle = '#444'; ctx.strokeRect(-2, goalTop, 10, goalHeight);
-        ctx.strokeRect(canvas.width - 8, goalTop, 10, goalHeight);
-
+        // Puck
         ctx.shadowBlur = 15; ctx.shadowColor = '#fff'; ctx.fillStyle = '#fff';
         ctx.beginPath(); ctx.arc(puck.x, puck.y, puck.radius, 0, Math.PI*2); ctx.fill();
-        
+        // Paddles
         const drawP = (p) => {
             ctx.shadowBlur = 20; ctx.shadowColor = p.color; ctx.fillStyle = p.color;
             ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2); ctx.fill();
@@ -247,7 +239,9 @@
     }
 
     function gameLoop() {
-        if (gameActive || isHost) { update(); draw(); requestAnimationFrame(gameLoop); }
+        update();
+        draw();
+        requestAnimationFrame(gameLoop);
     }
 </script>
 </body>
