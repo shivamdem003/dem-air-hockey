@@ -159,8 +159,8 @@
             let dist = Math.sqrt(dx*dx + dy*dy);
 
             // Gravity Pull (Larger range for bigger table)
-            if (dist < 240) {
-                puck.dx -= dx * 0.0018;
+            if (dist < 220) {
+                puck.dx += dx * 0.0018;
                 puck.dy -= dy * 0.0018;
             }
 
