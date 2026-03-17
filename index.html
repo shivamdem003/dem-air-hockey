@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Air Hockey - Gravity Colosseum</title>
+    <title>Air Hockey - Pro Gravity Colosseum</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         body { background: #050505; color: #0ff; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; overflow: hidden; }
@@ -59,8 +59,8 @@
     let gameActive = true;
 
     // Table settings
-    const centerX = 400, centerY = 300; // Centered for the bigger canvas
-    const tableRadius = 280; 
+    const centerX = 400, centerY = 300;
+    const tableRadius = 285; 
     const goalHeight = 160;
     const WIN_SCORE = 7;
     const SERIES_TO_WIN = 2;
@@ -143,7 +143,6 @@
         puck.x += puck.dx; puck.y += puck.dy;
         puck.dx *= puck.friction; puck.dy *= puck.friction;
 
-        // ROUND 1: Warp Pipes Logic
         if (currentRound === 1) {
             const pipeXStart = 325;
             const pipeXEnd = 475;
@@ -154,27 +153,24 @@
             }
             handleWallBounces();
         } 
-        
-        // ROUND 2: Circular Table + Gravity Well
         else if (currentRound === 2) {
             let dx = puck.x - centerX;
             let dy = puck.y - centerY;
             let dist = Math.sqrt(dx*dx + dy*dy);
 
-            // Gravity Pull
-            if (dist < 200) {
-                puck.dx -= dx * 0.0015;
-                puck.dy -= dy * 0.0015;
+            // Gravity Pull (Larger range for bigger table)
+            if (dist < 240) {
+                puck.dx -= dx * 0.0018;
+                puck.dy -= dy * 0.0018;
             }
 
-            // Circle Boundaries
             if (dist > tableRadius - puck.radius) {
-                // Goal arcs (between -30 and 30 degrees)
                 let angle = Math.atan2(dy, dx);
                 let deg = angle * (180 / Math.PI);
                 
-                if (Math.abs(deg) < 25 && puck.x > centerX) { scores.p1++; resetPuck(); }
-                else if (Math.abs(deg) > 155 && puck.x < centerX) { scores.p2++; resetPuck(); }
+                // NARROWER GOALS: only 15 degrees instead of 25 to prevent self-goals
+                if (Math.abs(deg) < 15 && puck.x > centerX) { scores.p1++; resetPuck(); }
+                else if (Math.abs(deg) > 165 && puck.x < centerX) { scores.p2++; resetPuck(); }
                 else {
                     let normalAngle = Math.atan2(dy, dx);
                     let speed = Math.sqrt(puck.dx**2 + puck.dy**2);
@@ -187,8 +183,6 @@
                 }
             }
         }
-
-        // ROUND 3: Shifting Gates
         else if (currentRound >= 3) {
             goalY += 5 * goalDir;
             if (goalY > canvas.height - goalHeight || goalY < 0) goalDir *= -1;
@@ -285,21 +279,19 @@
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
         if (currentRound === 2) {
-            // Gravity Well Visual
-            let grad = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, 200);
-            grad.addColorStop(0, 'rgba(0, 255, 255, 0.2)');
+            let grad = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, 240);
+            grad.addColorStop(0, 'rgba(0, 255, 255, 0.25)');
             grad.addColorStop(1, 'transparent');
             ctx.fillStyle = grad;
-            ctx.beginPath(); ctx.arc(centerX, centerY, 200, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(centerX, centerY, 240, 0, Math.PI*2); ctx.fill();
 
-            // Circular Wall
-            ctx.strokeStyle = '#333'; ctx.lineWidth = 8;
+            ctx.strokeStyle = '#333'; ctx.lineWidth = 10;
             ctx.beginPath(); ctx.arc(centerX, centerY, tableRadius, 0, Math.PI*2); ctx.stroke();
             
-            // Goal Arcs
-            ctx.lineWidth = 12;
-            ctx.strokeStyle = '#0ff'; ctx.beginPath(); ctx.arc(centerX, centerY, tableRadius, -0.4, 0.4); ctx.stroke();
-            ctx.strokeStyle = '#f0f'; ctx.beginPath(); ctx.arc(centerX, centerY, tableRadius, Math.PI-0.4, Math.PI+0.4); ctx.stroke();
+            ctx.lineWidth = 14;
+            // Goal Arcs are visually smaller now
+            ctx.strokeStyle = '#0ff'; ctx.beginPath(); ctx.arc(centerX, centerY, tableRadius, -0.25, 0.25); ctx.stroke();
+            ctx.strokeStyle = '#f0f'; ctx.beginPath(); ctx.arc(centerX, centerY, tableRadius, Math.PI-0.25, Math.PI+0.25); ctx.stroke();
         } else {
             ctx.strokeStyle = '#222'; ctx.lineWidth = 4;
             ctx.strokeRect(0, 0, canvas.width, canvas.height);
