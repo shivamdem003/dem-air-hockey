@@ -76,6 +76,9 @@
     let goalY = (canvas.height - goalHeight) / 2;
     let goalDir = 1;
 
+    // Timer State
+    let respawnTimer = 0; // Frames remaining in countdown
+
     peer.on('open', id => document.getElementById('my-id').innerText = id);
     peer.on('connection', c => { conn = c; isHost = true; setupConnection(); });
 
@@ -103,6 +106,7 @@
                 currentRound = data.round;
                 gameActive = data.gameActive;
                 goalY = data.goalY;
+                respawnTimer = data.respawnTimer; // Sync timer
                 updateUI();
             }
         });
@@ -140,6 +144,19 @@
     function update() {
         if (!isHost || !gameActive) return;
 
+        // Handle Respawn Countdown
+        if (respawnTimer > 0) {
+            respawnTimer--;
+            if (respawnTimer === 0) {
+                // Kickoff!
+                puck.dx = (Math.random() > 0.5 ? 6 : -6);
+                puck.dy = (Math.random() - 0.5) * 10;
+            }
+            // Send current state even while paused for timer
+            syncData();
+            return;
+        }
+
         puck.x += puck.dx; puck.y += puck.dy;
         puck.dx *= puck.friction; puck.dy *= puck.friction;
 
@@ -158,7 +175,6 @@
             let dy = puck.y - centerY;
             let dist = Math.sqrt(dx*dx + dy*dy);
 
-            // Gravity Pull (Larger range for bigger table)
             if (dist < 220) {
                 puck.dx += dx * 0.0018;
                 puck.dy -= dy * 0.0018;
@@ -168,7 +184,6 @@
                 let angle = Math.atan2(dy, dx);
                 let deg = angle * (180 / Math.PI);
                 
-                // NARROWER GOALS: only 15 degrees instead of 25 to prevent self-goals
                 if (Math.abs(deg) < 15 && puck.x > centerX) { scores.p1++; resetPuck(); }
                 else if (Math.abs(deg) > 165 && puck.x < centerX) { scores.p2++; resetPuck(); }
                 else {
@@ -192,9 +207,12 @@
         checkCollision(p1, puck);
         checkCollision(p2, puck);
         updateUI();
+        syncData();
+    }
 
+    function syncData() {
         if (conn && conn.open) {
-            conn.send({ p1, puck, scores, series: seriesPoints, round: currentRound, gameActive, goalY });
+            conn.send({ p1, puck, scores, series: seriesPoints, round: currentRound, gameActive, goalY, respawnTimer });
         }
     }
 
@@ -247,10 +265,13 @@
 
     function resetPuck() {
         puck.x = centerX; puck.y = centerY;
-        puck.dx = (Math.random() > 0.5 ? 6 : -6);
-        puck.dy = (Math.random() - 0.5) * 10;
+        puck.dx = 0; puck.dy = 0; // Freeze until timer ends
+
         if(isHost && scores.p1 >= WIN_SCORE) startNewRound("PLAYER 1");
         else if(isHost && scores.p2 >= WIN_SCORE) startNewRound("PLAYER 2");
+        else {
+            respawnTimer = 180; // 3 second delay (60fps * 3)
+        }
     }
 
     function startNewRound(winner) {
@@ -289,7 +310,6 @@
             ctx.beginPath(); ctx.arc(centerX, centerY, tableRadius, 0, Math.PI*2); ctx.stroke();
             
             ctx.lineWidth = 14;
-            // Goal Arcs are visually smaller now
             ctx.strokeStyle = '#0ff'; ctx.beginPath(); ctx.arc(centerX, centerY, tableRadius, -0.25, 0.25); ctx.stroke();
             ctx.strokeStyle = '#f0f'; ctx.beginPath(); ctx.arc(centerX, centerY, tableRadius, Math.PI-0.25, Math.PI+0.25); ctx.stroke();
         } else {
@@ -313,6 +333,29 @@
         ctx.beginPath(); ctx.arc(puck.x, puck.y, puck.radius, 0, Math.PI*2); ctx.fill();
         
         drawP(p1); drawP(p2);
+
+        // DRAW COUNTDOWN TIMER
+        if (respawnTimer > 0) {
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = '#0ff';
+            ctx.textAlign = "center";
+            
+            // Draw "GOAL" for the first second of delay, then numbers
+            if (respawnTimer > 120) {
+                ctx.fillStyle = "#fff";
+                ctx.font = "bold 80px 'Segoe UI'";
+                ctx.fillText("GOAL!", centerX, centerY - 20);
+            } else {
+                ctx.fillStyle = "#0ff";
+                ctx.font = "bold 100px 'Segoe UI'";
+                let secs = Math.ceil(respawnTimer / 60);
+                ctx.fillText(secs, centerX, centerY + 30);
+                ctx.font = "20px 'Segoe UI'";
+                ctx.fillStyle = "#fff";
+                ctx.fillText("READY?", centerX, centerY + 70);
+            }
+            ctx.shadowBlur = 0;
+        }
     }
 
     function drawP(p) {
