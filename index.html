@@ -7,7 +7,7 @@
     <style>
         body { background: #050505; color: #0ff; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; overflow: hidden; }
         #menu { margin-bottom: 10px; background: #222; padding: 12px; border-radius: 12px; border: 1px solid #0ff; display: flex; gap: 10px; align-items: center; z-index: 10; }
-        canvas { border: 2px solid #333; background: #000; cursor: none; box-shadow: 0 0 50px rgba(0,255,255,0.05); }
+        canvas { border: 2px solid #333; background: #050505; cursor: none; box-shadow: 0 0 50px rgba(0,255,255,0.1); }
         .hud { display: flex; justify-content: space-between; width: 800px; align-items: center; margin-bottom: 5px; }
         .score { font-size: 2.5rem; font-weight: bold; text-shadow: 0 0 10px #0ff; min-width: 60px; text-align: center; }
         .series-dots { font-size: 1.5rem; letter-spacing: 5px; color: #444; }
@@ -60,7 +60,7 @@
 
     // Constants
     const centerX = 400, centerY = 300;
-    const tableRadius = 290; // Large circle size
+    const tableRadius = 280; 
     const goalHeight = 160;
     const WIN_SCORE = 13;
     const SERIES_TO_WIN = 2;
@@ -120,16 +120,16 @@
         if (isHost) {
             p1.x = Math.min(mx, canvas.width/2 - p1.radius);
             p1.y = Math.max(p1.radius, Math.min(canvas.height - p1.radius, my));
-            if (currentRound === 2) applyCircleConstraint(p1);
+            if (currentRound === 2) applyCircleConstraint(p1, "left");
         } else {
             p2.x = Math.max(mx, canvas.width/2 + p2.radius);
             p2.y = Math.max(p2.radius, Math.min(canvas.height - p2.radius, my));
-            if (currentRound === 2) applyCircleConstraint(p2);
+            if (currentRound === 2) applyCircleConstraint(p2, "right");
             if (conn && conn.open) conn.send({ x: p2.x, y: p2.y });
         }
     });
 
-    function applyCircleConstraint(p) {
+    function applyCircleConstraint(p, side) {
         let dx = p.x - centerX;
         let dy = p.y - centerY;
         let dist = Math.sqrt(dx*dx + dy*dy);
@@ -138,6 +138,9 @@
             p.x = centerX + Math.cos(angle) * (tableRadius - p.radius);
             p.y = centerY + Math.sin(angle) * (tableRadius - p.radius);
         }
+        // Force midline stay
+        if (side === "left") p.x = Math.min(p.x, centerX - 5);
+        else p.x = Math.max(p.x, centerX + 5);
     }
 
     function update() {
@@ -210,19 +213,19 @@
         let dy = puck.y - centerY;
         let dist = Math.sqrt(dx*dx + dy*dy);
 
-        // Gravity core pull
+        // Gravity core pull toward center
         if (dist < 200) {
-            puck.dx += dx * 0.002;
-            puck.dy -= dy * 0.002;
+            puck.dx -= dx * 0.0015;
+            puck.dy -= dy * 0.0015;
         }
 
         if (dist > tableRadius - puck.radius) {
             let angle = Math.atan2(dy, dx);
             let deg = angle * (180 / Math.PI);
             
-            // Goals at 0 deg (right) and 180 deg (left)
-            if (Math.abs(deg) < 20) { scores.p1++; resetPuck(); }
-            else if (Math.abs(deg) > 160) { scores.p2++; resetPuck(); }
+            // Goals at 0 deg (right) and 180 deg (left) - slightly wider hitboxes for fun
+            if (Math.abs(deg) < 22) { scores.p1++; resetPuck(); }
+            else if (Math.abs(deg) > 158) { scores.p2++; resetPuck(); }
             else {
                 let normalAngle = Math.atan2(dy, dx);
                 let speed = Math.sqrt(puck.dx**2 + puck.dy**2);
@@ -242,7 +245,7 @@
         let dist = Math.sqrt(dx*dx + dy*dy);
         if (dist < paddle.radius + pk.radius) {
             let angle = Math.atan2(dy, dx);
-            let speed = Math.sqrt(pk.dx**2 + pk.dy**2) + 2.5;
+            let speed = Math.sqrt(pk.dx**2 + pk.dy**2) + 3;
             pk.dx = Math.cos(angle) * Math.min(speed, 22);
             pk.dy = Math.sin(angle) * Math.min(speed, 22);
             pk.x = paddle.x + Math.cos(angle) * (paddle.radius + pk.radius + 2);
@@ -297,43 +300,55 @@
     }
 
     function draw() {
-        ctx.fillStyle = '#000';
+        // Background
+        ctx.fillStyle = '#050505';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
         if (currentRound === 2) {
             // DRAW CIRCULAR ARENA
+            ctx.save();
             ctx.beginPath();
             ctx.arc(centerX, centerY, tableRadius, 0, Math.PI * 2);
-            ctx.strokeStyle = '#333';
-            ctx.lineWidth = 8;
-            ctx.stroke();
-
-            // Circular Glow
+            ctx.clip();
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0,0, canvas.width, canvas.height);
+            
+            // Subtle Radial Glow
             let grad = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, tableRadius);
-            grad.addColorStop(0, 'rgba(0, 255, 255, 0.05)');
+            grad.addColorStop(0, 'rgba(0, 255, 255, 0.08)');
             grad.addColorStop(1, 'transparent');
             ctx.fillStyle = grad;
             ctx.fill();
+            ctx.restore();
+
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, tableRadius, 0, Math.PI * 2);
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 10;
+            ctx.stroke();
 
             // Goal Arcs
-            ctx.lineWidth = 12;
-            ctx.strokeStyle = '#0ff'; // P1 Goal (Right side)
-            ctx.beginPath(); ctx.arc(centerX, centerY, tableRadius, -0.3, 0.3); ctx.stroke();
-            ctx.strokeStyle = '#f0f'; // P2 Goal (Left side)
-            ctx.beginPath(); ctx.arc(centerX, centerY, tableRadius, Math.PI - 0.3, Math.PI + 0.3); ctx.stroke();
+            ctx.lineWidth = 15;
+            ctx.strokeStyle = '#f0f'; // Left
+            ctx.beginPath(); ctx.arc(centerX, centerY, tableRadius, Math.PI - 0.4, Math.PI + 0.4); ctx.stroke();
+            ctx.strokeStyle = '#0ff'; // Right
+            ctx.beginPath(); ctx.arc(centerX, centerY, tableRadius, -0.4, 0.4); ctx.stroke();
         } else {
             // DRAW RECTANGULAR ARENA
-            ctx.strokeStyle = '#222'; ctx.lineWidth = 4;
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.strokeStyle = '#333'; ctx.lineWidth = 10;
             ctx.strokeRect(0, 0, canvas.width, canvas.height);
+            
             const curY = (currentRound >= 3) ? goalY : (canvas.height - goalHeight)/2;
-            ctx.fillStyle = '#0ff'; ctx.fillRect(0, curY, 8, goalHeight);
-            ctx.fillStyle = '#f0f'; ctx.fillRect(canvas.width-8, curY, 8, goalHeight);
+            ctx.fillStyle = '#0ff'; ctx.fillRect(0, curY, 10, goalHeight);
+            ctx.fillStyle = '#f0f'; ctx.fillRect(canvas.width-10, curY, 10, goalHeight);
         }
 
         // Warp Pipes decoration
         if (currentRound === 1) {
             ctx.shadowBlur = 20; ctx.shadowColor = '#0f0'; ctx.fillStyle = '#0f0';
-            ctx.fillRect(325, -15, 150, 20); ctx.fillRect(325, canvas.height - 5, 150, 20);
+            ctx.fillRect(325, -10, 150, 15); ctx.fillRect(325, canvas.height - 5, 150, 15);
         }
 
         // Midline
@@ -350,6 +365,7 @@
         // Timer
         if (respawnTimer > 0) {
             ctx.textAlign = "center";
+            ctx.shadowBlur = 10; ctx.shadowColor = "#000";
             if (respawnTimer > 120) {
                 ctx.fillStyle = "#fff"; ctx.font = "bold 80px 'Segoe UI'";
                 ctx.fillText("GOAL!", centerX, centerY - 20);
