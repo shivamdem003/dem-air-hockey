@@ -114,7 +114,7 @@
 
         <div style="margin-top:25px; display: flex; gap:10px; justify-content: center;">
             <button id="resume-btn" style="display:none; background:#0f0;" onclick="resumeGame()">Resume</button>
-            <button id="restart-btn" style="display:none;" onclick="resetFullMatch()">Start New Series</button>
+            <button id="restart-btn" style="display:none;" onclick="location.reload()">New Session</button>
         </div>
     </div>
 
@@ -123,7 +123,7 @@
     const ctx = canvas.getContext('2d');
     const peer = new Peer(); 
     let conn;
-    let isHost = false, gameActive = true, isPaused = false, disconnected = false;
+    let isHost = false, gameActive = false, isPaused = false, disconnected = false;
 
     const centerX = 500, centerY = 300, tableRadius = 280, cornerRadius = 45, goalHeight = 160;
     const WIN_SCORE = 13, SERIES_TO_WIN = 2;
@@ -143,7 +143,10 @@
     let goalY = (canvas.height - goalHeight) / 2, goalDir = 1;
 
     peer.on('open', id => document.getElementById('my-id').innerText = id);
-    peer.on('connection', c => { conn = c; isHost = true; setupConnection(); });
+    peer.on('connection', c => { 
+        if(conn) conn.close();
+        conn = c; isHost = true; setupConnection(); 
+    });
 
     function connectToFriend() {
         const remoteId = document.getElementById('remote-id').value;
@@ -156,11 +159,16 @@
         conn.on('open', () => {
             document.getElementById('status').innerText = "LINK ESTABLISHED";
             disconnected = false; 
+            gameActive = true;
             if(isHost) resetFullMatch();
             gameLoop();
         });
+        
+        // CRITICAL FIX: Handle disconnection events
         conn.on('close', () => handleDisconnection());
         conn.on('error', () => handleDisconnection());
+        peer.on('disconnected', () => handleDisconnection());
+
         conn.on('data', data => {
             if (data.type === 'PAUSE_REQ') handlePauseRequest(data.player);
             else if (data.type === 'RESUME') { isPaused = false; updateUI(); }
@@ -181,14 +189,22 @@
 
     function handleDisconnection() {
         if (disconnected) return;
-        disconnected = true; gameActive = false; isPaused = false; updateUI();
+        disconnected = true; 
+        gameActive = false; 
+        isPaused = false;
+        
         const overlay = document.getElementById('overlay');
+        const winText = document.getElementById('winner-text');
+        const subText = document.getElementById('sub-text');
+        
         overlay.style.display = 'block';
-        document.getElementById('winner-text').innerText = "CONNECTION LOST";
-        document.getElementById('winner-text').style.color = "#ff0000";
-        document.getElementById('sub-text').innerText = "Opponent fled. Automatic match win.";
+        winText.style.color = isHost ? "#0ff" : "#f0f";
+        winText.innerText = "VICTORY BY FORFEIT";
+        subText.innerText = "Opponent connection lost. You are the champion of the Colosseum.";
+        
         document.getElementById('resume-btn').style.display = 'none';
         document.getElementById('restart-btn').style.display = 'inline-block';
+        document.getElementById('status').innerText = "CONNECTION SEVERED";
     }
 
     function requestPause() {
@@ -249,8 +265,8 @@
         if (respawnTimer > 0) {
             respawnTimer--;
             if (respawnTimer === 0) {
-                puck.dx = (Math.random() > 0.5 ? 3.5 : -3.5);
-                puck.dy = (Math.random() - 0.5) * 5;
+                puck.dx = (Math.random() > 0.5 ? 4.5 : -4.5);
+                puck.dy = (Math.random() - 0.5) * 6;
                 lastHitter = 0;
             }
             syncData(); return;
@@ -358,10 +374,9 @@
             if ((pNum === 1 && pk.dx < -1) || (pNum === 2 && pk.dx > 1)) matchStats['p' + pNum].saves++;
             lastHitter = pNum;
             let angle = Math.atan2(dy, dx), impactVel = Math.sqrt(paddle.vx**2 + paddle.vy**2);
-            let speed = Math.sqrt(pk.dx**2 + pk.dy**2) + (impactVel * 0.45) + 2.0;
-            pk.dx = Math.cos(angle) * Math.min(speed, 22); pk.dy = Math.sin(angle) * Math.min(speed, 22);
+            let speed = Math.sqrt(pk.dx**2 + pk.dy**2) + (impactVel * 0.5) + 2.5;
+            pk.dx = Math.cos(angle) * Math.min(speed, 23); pk.dy = Math.sin(angle) * Math.min(speed, 23);
             
-            // Push-out correction to prevent sticking
             const overlap = (paddle.radius + pk.radius) - dist;
             pk.x += Math.cos(angle) * (overlap + 2);
             pk.y += Math.sin(angle) * (overlap + 2);
@@ -370,18 +385,13 @@
 
     function calculateGrade(pKey) {
         const s = matchStats[pKey];
-        const opponentKey = pKey === 'p1' ? 'p2' : 'p1';
-        
-        // Performance Index (PI)
-        let pi = (s.goals * 20) + (s.saves * 12) - (s.ownGoals * 35);
-        
-        // Clean Sheet Bonus
-        if (seriesPoints[pKey] >= SERIES_TO_WIN && seriesPoints[opponentKey] === 0) pi += 50;
-
-        if (pi >= 220) return "S+";
-        if (pi >= 160) return "S";
-        if (pi >= 110) return "A";
-        if (pi >= 60)  return "B";
+        const opp = pKey === 'p1' ? 'p2' : 'p1';
+        let pi = (s.goals * 25) + (s.saves * 15) - (s.ownGoals * 40);
+        if (seriesPoints[pKey] >= SERIES_TO_WIN && seriesPoints[opp] === 0) pi += 60;
+        if (pi >= 250) return "S+";
+        if (pi >= 180) return "S";
+        if (pi >= 120) return "A";
+        if (pi >= 70)  return "B";
         if (pi >= 0)   return "C";
         return "D";
     }
@@ -399,8 +409,9 @@
         
         const overlay = document.getElementById('overlay'), statsUI = document.getElementById('stats-ui');
 
-        if (disconnected) { overlay.style.display = 'block'; }
-        else if (isPaused) {
+        if (disconnected) {
+             // Logic handled in handleDisconnection()
+        } else if (isPaused) {
             overlay.style.display = 'block';
             document.getElementById('winner-text').innerText = "GAME PAUSED";
             document.getElementById('sub-text').innerText = "Strategic timeout...";
@@ -417,11 +428,9 @@
                 const p1G = matchStats.p1.rank, p2G = matchStats.p2.rank;
                 const r1 = document.getElementById('rank-p1'), r2 = document.getElementById('rank-p2');
                 r1.innerText = p1G; r2.innerText = p2G;
-
                 const formatClass = (grade) => `rank-letter rank-${grade.toLowerCase().replace('+', '-plus')}`;
                 r1.className = formatClass(p1G);
                 r2.className = formatClass(p2G);
-
                 document.getElementById('stat-p1-goals').innerText = matchStats.p1.goals;
                 document.getElementById('stat-p2-goals').innerText = matchStats.p2.goals;
                 document.getElementById('stat-p1-saves').innerText = matchStats.p1.saves;
@@ -511,7 +520,13 @@
         ctx.shadowBlur = 0; ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 2; ctx.stroke();
     }
 
-    function gameLoop() { update(); draw(); requestAnimationFrame(gameLoop); }
+    function gameLoop() { 
+        if(!disconnected) {
+            update(); 
+            draw(); 
+            requestAnimationFrame(gameLoop); 
+        }
+    }
 </script>
 </body>
 </html>
