@@ -79,6 +79,7 @@
 
     const centerX = 500, centerY = 300; 
     const tableRadius = 280; 
+    const cornerRadius = 45; // Table corner curviness
     const goalHeight = 160;
     const WIN_SCORE = 13;
     const SERIES_TO_WIN = 2;
@@ -115,12 +116,9 @@
         });
 
         conn.on('data', data => {
-            if (data.type === 'PAUSE_REQ') {
-                handlePauseRequest(data.player);
-            } else if (data.type === 'RESUME') {
-                isPaused = false;
-                updateUI();
-            } else if (isHost) {
+            if (data.type === 'PAUSE_REQ') handlePauseRequest(data.player);
+            else if (data.type === 'RESUME') { isPaused = false; updateUI(); }
+            else if (isHost) {
                 p2.vx = data.x - p2.x; p2.vy = data.y - p2.y;
                 p2.x = data.x; p2.y = data.y;
             } else {
@@ -186,8 +184,7 @@
     });
 
     function applyCircleConstraint(p, side) {
-        let dx = p.x - centerX;
-        let dy = p.y - centerY;
+        let dx = p.x - centerX; let dy = p.y - centerY;
         let dist = Math.sqrt(dx*dx + dy*dy);
         if (dist > tableRadius - p.radius) {
             let angle = Math.atan2(dy, dx);
@@ -200,7 +197,7 @@
 
     function update() {
         if (shakeIntensity > 0) shakeIntensity *= 0.92;
-        if (isPaused) return; // Freeze update if paused
+        if (isPaused) return;
 
         if (!isHost || !gameActive) return;
 
@@ -235,17 +232,19 @@
     function triggerGoal(player) {
         if (player === 1) scores.p1++;
         else scores.p2++;
-        shakeIntensity = 15; 
-        resetPuck();
+        shakeIntensity = 15; resetPuck();
     }
 
     function updateRectPhysics() {
+        const curGoalTop = (currentRound === 3) ? goalY : (canvas.height - goalHeight)/2;
+        const curGoalBottom = curGoalTop + goalHeight;
+
+        // Map 1 Pipe Logic
         if (currentRound === 1) {
-            const pipeXStart = centerX - 75;
-            const pipeXEnd = centerX + 75;
-            if (puck.y < puck.radius && puck.x > pipeXStart && puck.x < pipeXEnd) {
+            const pxStart = centerX - 75, pxEnd = centerX + 75;
+            if (puck.y < puck.radius && puck.x > pxStart && puck.x < pxEnd) {
                 puck.dy = 12; puck.dx = (puck.x < centerX) ? 10 : -10; puck.y = puck.radius + 10;
-            } else if (puck.y > canvas.height - puck.radius && puck.x > pipeXStart && puck.x < pipeXEnd) {
+            } else if (puck.y > canvas.height - puck.radius && puck.x > pxStart && puck.x < pxEnd) {
                 puck.dy = -12; puck.dx = (puck.x < centerX) ? 10 : -10; puck.y = canvas.height - puck.radius - 10;
             }
         }
@@ -254,17 +253,42 @@
             if (goalY > canvas.height - goalHeight || goalY < 0) goalDir *= -1;
         }
 
-        const curGoalTop = (currentRound === 3) ? goalY : (canvas.height - goalHeight)/2;
-        const curGoalBottom = curGoalTop + goalHeight;
+        // Corner Reflection Logic
+        const corners = [
+            {cx: cornerRadius, cy: cornerRadius}, 
+            {cx: canvas.width - cornerRadius, cy: cornerRadius},
+            {cx: cornerRadius, cy: canvas.height - cornerRadius},
+            {cx: canvas.width - cornerRadius, cy: canvas.height - cornerRadius}
+        ];
 
+        corners.forEach((c, i) => {
+            let inX = (i % 2 === 0) ? puck.x < c.cx : puck.x > c.cx;
+            let inY = (i < 2) ? puck.y < c.cy : puck.y > c.cy;
+            if (inX && inY) {
+                let dx = puck.x - c.cx; let dy = puck.y - c.cy;
+                let dist = Math.sqrt(dx*dx + dy*dy);
+                if (dist > cornerRadius - puck.radius) {
+                    let angle = Math.atan2(dy, dx);
+                    let speed = Math.sqrt(puck.dx**2 + puck.dy**2);
+                    let incident = Math.atan2(puck.dy, puck.dx);
+                    let reflection = 2 * angle - incident + Math.PI;
+                    puck.dx = Math.cos(reflection) * speed;
+                    puck.dy = Math.sin(reflection) * speed;
+                    puck.x = c.cx + Math.cos(angle) * (cornerRadius - puck.radius - 1);
+                    puck.y = c.cy + Math.sin(angle) * (cornerRadius - puck.radius - 1);
+                }
+            }
+        });
+
+        // Standard Wall Physics
         if (puck.y < puck.radius) { puck.y = puck.radius; puck.dy *= -1; }
         else if (puck.y > canvas.height - puck.radius) { puck.y = canvas.height - puck.radius; puck.dy *= -1; }
 
         if (puck.x < puck.radius) {
-            if (puck.y > curGoalTop && puck.y < curGoalBottom) { triggerGoal(2); }
+            if (puck.y > curGoalTop && puck.y < curGoalBottom) triggerGoal(2);
             else { puck.x = puck.radius; puck.dx *= -1; }
         } else if (puck.x > canvas.width - puck.radius) {
-            if (puck.y > curGoalTop && puck.y < curGoalBottom) { triggerGoal(1); }
+            if (puck.y > curGoalTop && puck.y < curGoalBottom) triggerGoal(1);
             else { puck.x = canvas.width - puck.radius; puck.dx *= -1; }
         }
     }
@@ -274,19 +298,17 @@
         let dist = Math.sqrt(dx*dx + dy*dy);
         if (dist < 200) { puck.dx -= dx * 0.0005; puck.dy -= dy * 0.0005; }
         if (dist > tableRadius - puck.radius) {
-            let angle = Math.atan2(dy, dx);
-            let deg = angle * (180 / Math.PI);
-            if (Math.abs(deg) < 22) { triggerGoal(1); }
-            else if (Math.abs(deg) > 158) { triggerGoal(2); }
+            let angle = Math.atan2(dy, dx); let deg = angle * (180 / Math.PI);
+            if (Math.abs(deg) < 22) triggerGoal(1);
+            else if (Math.abs(deg) > 158) triggerGoal(2);
             else {
-                let normalAngle = Math.atan2(dy, dx);
-                let speed = Math.sqrt(puck.dx**2 + puck.dy**2);
-                let incidentAngle = Math.atan2(puck.dy, puck.dx);
-                let reflectionAngle = 2 * normalAngle - incidentAngle + Math.PI;
-                puck.dx = Math.cos(reflectionAngle) * speed * 0.99;
-                puck.dy = Math.sin(reflectionAngle) * speed * 0.99;
-                puck.x = centerX + Math.cos(normalAngle) * (tableRadius - puck.radius - 2);
-                puck.y = centerY + Math.sin(normalAngle) * (tableRadius - puck.radius - 2);
+                let normal = Math.atan2(dy, dx); let speed = Math.sqrt(puck.dx**2 + puck.dy**2);
+                let incident = Math.atan2(puck.dy, puck.dx);
+                let reflection = 2 * normal - incident + Math.PI;
+                puck.dx = Math.cos(reflection) * speed * 0.99;
+                puck.dy = Math.sin(reflection) * speed * 0.99;
+                puck.x = centerX + Math.cos(normal) * (tableRadius - puck.radius - 2);
+                puck.y = centerY + Math.sin(normal) * (tableRadius - puck.radius - 2);
             }
         }
     }
@@ -311,46 +333,36 @@
         document.getElementById('round-num').innerText = currentRound;
         document.getElementById('p1-pauses').innerText = pausesLeft.p1;
         document.getElementById('p2-pauses').innerText = pausesLeft.p2;
-        
         const labels = ["VELOCITY SURGE", "ZERO-G COLOSSEUM", "SHIFTING NEXUS"];
         document.getElementById('table-type').innerText = labels[currentRound-1] || "FINAL";
-        
         const playerKey = isHost ? 'p1' : 'p2';
         document.getElementById('pause-btn').disabled = pausesLeft[playerKey] <= 0 || isPaused;
-
         const overlay = document.getElementById('overlay');
         const resumeBtn = document.getElementById('resume-btn');
         const restartBtn = document.getElementById('restart-btn');
-
         if (isPaused) {
             overlay.style.display = 'block';
             document.getElementById('winner-text').innerText = "GAME PAUSED";
-            document.getElementById('sub-text').innerText = "Strategic break in progress...";
+            document.getElementById('sub-text').innerText = "Tactical timeout...";
             resumeBtn.style.display = 'inline-block';
             restartBtn.style.display = 'none';
         } else if (!gameActive) {
             overlay.style.display = 'block';
             const isMatchOver = seriesPoints.p1 >= SERIES_TO_WIN || seriesPoints.p2 >= SERIES_TO_WIN;
             document.getElementById('winner-text').innerText = isMatchOver ? lastWinnerLabel + " VICTORIOUS" : lastWinnerLabel + " ROUND WIN";
-            document.getElementById('sub-text').innerText = "Prepare for the next round...";
+            document.getElementById('sub-text').innerText = "Preparing next arena...";
             resumeBtn.style.display = 'none';
             if (isMatchOver && isHost) restartBtn.style.display = 'inline-block';
-        } else {
-            overlay.style.display = 'none';
-        }
-
+        } else { overlay.style.display = 'none'; }
         const renderDots = (id, pts) => {
-            let dots = "";
-            for(let i=0; i<SERIES_TO_WIN; i++) dots += `<span class="${i < pts ? 'won' : ''}">●</span> `;
+            let dots = ""; for(let i=0; i<SERIES_TO_WIN; i++) dots += `<span class="${i < pts ? 'won' : ''}">●</span> `;
             document.getElementById(id).innerHTML = dots;
         };
-        renderDots('series-p1', seriesPoints.p1);
-        renderDots('series-p2', seriesPoints.p2);
+        renderDots('series-p1', seriesPoints.p1); renderDots('series-p2', seriesPoints.p2);
     }
 
     function resetPuck() {
-        puck.x = centerX; puck.y = centerY;
-        puck.dx = 0; puck.dy = 0;
+        puck.x = centerX; puck.y = centerY; puck.dx = 0; puck.dy = 0;
         if(isHost) {
             if (scores.p1 >= WIN_SCORE) startNewRound("PLAYER 1");
             else if (scores.p2 >= WIN_SCORE) startNewRound("PLAYER 2");
@@ -359,11 +371,8 @@
     }
 
     function startNewRound(winner) {
-        gameActive = false;
-        lastWinnerLabel = winner;
-        seriesPoints[winner === "PLAYER 1" ? 'p1' : 'p2']++;
-        updateUI();
-        syncData(); 
+        gameActive = false; lastWinnerLabel = winner; seriesPoints[winner === "PLAYER 1" ? 'p1' : 'p2']++;
+        updateUI(); syncData(); 
         if (seriesPoints.p1 < SERIES_TO_WIN && seriesPoints.p2 < SERIES_TO_WIN) {
             setTimeout(() => {
                 scores = {p1:0, p2:0}; currentRound++; gameActive = true; resetPuck(); updateUI();
@@ -380,11 +389,8 @@
 
     function draw() {
         ctx.save();
-        if (shakeIntensity > 0.5) {
-            ctx.translate((Math.random()-0.5)*shakeIntensity, (Math.random()-0.5)*shakeIntensity);
-        }
-        ctx.fillStyle = '#050505';
-        ctx.fillRect(-20, -20, canvas.width+40, canvas.height+40);
+        if (shakeIntensity > 0.5) ctx.translate((Math.random()-0.5)*shakeIntensity, (Math.random()-0.5)*shakeIntensity);
+        ctx.fillStyle = '#050505'; ctx.fillRect(-20, -20, canvas.width+40, canvas.height+40);
 
         if (currentRound === 2) {
             ctx.save();
@@ -400,7 +406,9 @@
             ctx.strokeStyle = '#0ff'; ctx.beginPath(); ctx.arc(centerX, centerY, tableRadius, -0.35, 0.35); ctx.stroke();
         } else {
             ctx.strokeStyle = '#222'; ctx.lineWidth = 6;
-            ctx.strokeRect(0, 0, canvas.width, canvas.height);
+            ctx.beginPath();
+            ctx.roundRect(0, 0, canvas.width, canvas.height, cornerRadius);
+            ctx.stroke();
             const curY = (currentRound === 3) ? goalY : (canvas.height - goalHeight)/2;
             ctx.fillStyle = '#0ff'; ctx.fillRect(0, curY, 6, goalHeight);
             ctx.fillStyle = '#f0f'; ctx.fillRect(canvas.width-6, curY, 6, goalHeight);
@@ -438,11 +446,7 @@
         ctx.lineWidth = 2; ctx.stroke();
     }
 
-    function gameLoop() {
-        update();
-        draw();
-        requestAnimationFrame(gameLoop);
-    }
+    function gameLoop() { update(); draw(); requestAnimationFrame(gameLoop); }
 </script>
 </body>
 </html>
