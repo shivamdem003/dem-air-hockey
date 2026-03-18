@@ -8,12 +8,33 @@
         body { background: #050505; color: #0ff; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; overflow: hidden; }
         #menu { margin-bottom: 10px; background: #1a1a1a; padding: 12px; border-radius: 12px; border: 1px solid #333; display: flex; gap: 10px; align-items: center; z-index: 10; }
         canvas { border: 2px solid #222; background: #000; cursor: none; box-shadow: 0 0 30px rgba(0,255,255,0.05); }
-        .hud { display: flex; justify-content: space-between; width: 1000px; align-items: center; margin-bottom: 5px; }
+        .hud { display: flex; justify-content: space-between; width: 1000px; align-items: center; margin-bottom: 15px; }
         .score { font-size: 2.5rem; font-weight: bold; text-shadow: 0 0 8px #0ff; min-width: 60px; text-align: center; }
         .series-dots { font-size: 1.5rem; letter-spacing: 5px; color: #333; }
         .series-dots .won { color: #0ff; text-shadow: 0 0 8px #0ff; }
         .series-dots.p2 .won { color: #f0f; text-shadow: 0 0 8px #f0f; }
-        .round-display { font-size: 1.1rem; color: #ccc; background: #111; padding: 5px 20px; border-radius: 20px; border: 1px solid #333; letter-spacing: 1px; }
+        
+        /* Updated Round Display */
+        .round-display { 
+            text-align: center;
+            color: #ccc; 
+            background: rgba(255,255,255,0.03); 
+            padding: 10px 40px; 
+            border-radius: 15px; 
+            border: 1px solid #333; 
+            min-width: 250px;
+        }
+        #round-label { font-size: 0.9rem; letter-spacing: 2px; color: #888; text-transform: uppercase; }
+        #table-type { 
+            display: block; 
+            font-size: 1.8rem; 
+            font-weight: 900; 
+            color: #fff; 
+            margin-top: 2px; 
+            text-shadow: 0 0 10px rgba(255,255,255,0.2);
+            letter-spacing: 1px;
+        }
+
         button { background: #0ff; border: none; padding: 8px 18px; cursor: pointer; font-weight: bold; border-radius: 4px; transition: 0.2s; color: #000; text-transform: uppercase; }
         button:hover { background: #fff; transform: translateY(-1px); }
         input { background: #111; border: 1px solid #444; color: white; padding: 8px; border-radius: 4px; outline: none; width: 180px; }
@@ -34,7 +55,12 @@
             <div class="score" id="s1">0</div>
             <div id="series-p1" class="series-dots">● ●</div>
         </div>
-        <div class="round-display">RD <span id="round-num">1</span>: <span id="table-type">VELOCITY SURGE</span></div>
+        
+        <div class="round-display">
+            <div id="round-label"><b>RD <span id="round-num">1</span></b></div>
+            <span id="table-type">VELOCITY SURGE</span>
+        </div>
+
         <div style="display: flex; flex-direction: column; align-items: center;">
             <div class="score" id="s2" style="color:#f0f; text-shadow: 0 0 8px #f0f;">0</div>
             <div id="series-p2" class="series-dots p2">● ●</div>
@@ -69,7 +95,7 @@
     let seriesPoints = { p1: 0, p2: 0 };
     let respawnTimer = 0;
     let lastWinnerLabel = "";
-    let shakeIntensity = 0; // Screen shake variable
+    let shakeIntensity = 0; 
 
     const puck = { x: 500, y: 300, dx: 0, dy: 0, radius: 15, friction: 0.993 };
     const p1 = { x: 150, y: 300, vx: 0, vy: 0, radius: 32, color: '#0ff' };
@@ -108,7 +134,7 @@
                 goalY = data.goalY;
                 respawnTimer = data.respawnTimer;
                 lastWinnerLabel = data.lastWinnerLabel; 
-                // Guest also triggers shake if respawn timer just started
+                // Guest side: Trigger shake when a goal sync arrives
                 if (respawnTimer >= 158) shakeIntensity = 12;
                 updateUI();
             }
@@ -148,10 +174,10 @@
     }
 
     function update() {
-        if (!isHost || !gameActive) return;
-
-        // Decay shake intensity
+        // FIXED: Shake decay now runs for both Host and Guest
         if (shakeIntensity > 0) shakeIntensity *= 0.92;
+
+        if (!isHost || !gameActive) return;
 
         if (respawnTimer > 0) {
             respawnTimer--;
@@ -184,7 +210,7 @@
     function triggerGoal(player) {
         if (player === 1) scores.p1++;
         else scores.p2++;
-        shakeIntensity = 15; // Set shake intensity on goal
+        shakeIntensity = 15; 
         resetPuck();
     }
 
@@ -330,7 +356,6 @@
     function draw() {
         ctx.save();
         
-        // Apply Screen Shake transformation
         if (shakeIntensity > 0.5) {
             const sx = (Math.random() - 0.5) * shakeIntensity;
             const sy = (Math.random() - 0.5) * shakeIntensity;
@@ -400,7 +425,7 @@
             }
         }
         
-        ctx.restore(); // Final restore of shake transform
+        ctx.restore(); 
     }
 
     function drawP(p) {
