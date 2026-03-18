@@ -8,7 +8,7 @@
         body { background: #050505; color: #0ff; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; overflow: hidden; }
         #menu { margin-bottom: 10px; background: #222; padding: 12px; border-radius: 12px; border: 1px solid #0ff; display: flex; gap: 10px; align-items: center; z-index: 10; }
         canvas { border: 2px solid #333; background: #050505; cursor: none; box-shadow: 0 0 50px rgba(0,255,255,0.1); }
-        .hud { display: flex; justify-content: space-between; width: 800px; align-items: center; margin-bottom: 5px; }
+        .hud { display: flex; justify-content: space-between; width: 1000px; align-items: center; margin-bottom: 5px; }
         .score { font-size: 2.5rem; font-weight: bold; text-shadow: 0 0 10px #0ff; min-width: 60px; text-align: center; }
         .series-dots { font-size: 1.5rem; letter-spacing: 5px; color: #444; }
         .series-dots .won { color: #0ff; text-shadow: 0 0 10px #0ff; }
@@ -34,18 +34,18 @@
             <div class="score" id="s1">0</div>
             <div id="series-p1" class="series-dots">● ●</div>
         </div>
-        <div class="round-display">ROUND <span id="round-num">1</span>: <span id="table-type">WARP PIPES</span></div>
+        <div class="round-display">ROUND <span id="round-num">1</span>: <span id="table-type">Velocity Surge</span></div>
         <div style="display: flex; flex-direction: column; align-items: center;">
             <div class="score" id="s2" style="color:#f0f; text-shadow: 0 0 10px #f0f;">0</div>
             <div id="series-p2" class="series-dots p2">● ●</div>
         </div>
     </div>
 
-    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <canvas id="gameCanvas" width="1000" height="600"></canvas>
     <div id="status">Waiting for connection...</div>
 
     <div id="overlay">
-        <h1 id="winner-text" style="margin:0; font-size: 3rem;">PLAYER 1 WINS!</h1>
+        <h1 id="winner-text" style="margin:0; font-size: 3rem;">-</h1>
         <p id="sub-text" style="color: #fff; font-size: 1.2rem;">Next round starting...</p>
         <button id="restart-btn" style="display:none; margin-top:20px;" onclick="resetFullMatch()">Play New Series</button>
     </div>
@@ -58,22 +58,21 @@
     let isHost = false;
     let gameActive = true;
 
-    // Constants
-    const centerX = 400, centerY = 300;
+    const centerX = 500, centerY = 300; 
     const tableRadius = 280; 
     const goalHeight = 160;
     const WIN_SCORE = 13;
     const SERIES_TO_WIN = 2;
     
-    // State
     let currentRound = 1;
     let scores = { p1: 0, p2: 0 };
     let seriesPoints = { p1: 0, p2: 0 };
     let respawnTimer = 0;
+    let lastWinnerLabel = "";
 
-    const puck = { x: 400, y: 300, dx: 0, dy: 0, radius: 15, friction: 0.994 };
+    const puck = { x: 500, y: 300, dx: 0, dy: 0, radius: 15, friction: 0.994 };
     const p1 = { x: 150, y: 300, radius: 30, color: '#0ff' };
-    const p2 = { x: 650, y: 300, radius: 30, color: '#f0f' };
+    const p2 = { x: 850, y: 300, radius: 30, color: '#f0f' };
     
     let goalY = (canvas.height - goalHeight) / 2;
     let goalDir = 1;
@@ -106,6 +105,7 @@
                 gameActive = data.gameActive;
                 goalY = data.goalY;
                 respawnTimer = data.respawnTimer;
+                lastWinnerLabel = data.lastWinnerLabel; 
                 updateUI();
             }
         });
@@ -138,7 +138,6 @@
             p.x = centerX + Math.cos(angle) * (tableRadius - p.radius);
             p.y = centerY + Math.sin(angle) * (tableRadius - p.radius);
         }
-        // Force midline stay
         if (side === "left") p.x = Math.min(p.x, centerX - 5);
         else p.x = Math.max(p.x, centerX + 5);
     }
@@ -149,8 +148,8 @@
         if (respawnTimer > 0) {
             respawnTimer--;
             if (respawnTimer === 0) {
-                puck.dx = (Math.random() > 0.5 ? 7 : -7);
-                puck.dy = (Math.random() - 0.5) * 12;
+                puck.dx = (Math.random() > 0.5 ? 8 : -8);
+                puck.dy = (Math.random() - 0.5) * 14;
             }
             syncData();
             return;
@@ -173,23 +172,23 @@
 
     function syncData() {
         if (conn && conn.open) {
-            conn.send({ p1, puck, scores, series: seriesPoints, round: currentRound, gameActive, goalY, respawnTimer });
+            conn.send({ p1, puck, scores, series: seriesPoints, round: currentRound, gameActive, goalY, respawnTimer, lastWinnerLabel });
         }
     }
 
     function updateRectPhysics() {
         if (currentRound === 1) {
-            const pipeXStart = 325;
-            const pipeXEnd = 475;
+            const pipeXStart = centerX - 75;
+            const pipeXEnd = centerX + 75;
             if (puck.y < puck.radius && puck.x > pipeXStart && puck.x < pipeXEnd) {
-                puck.dy = 12; puck.dx = (puck.x < 400) ? 10 : -10; puck.y = puck.radius + 15;
+                puck.dy = 12; puck.dx = (puck.x < centerX) ? 10 : -10; puck.y = puck.radius + 15;
             } else if (puck.y > canvas.height - puck.radius && puck.x > pipeXStart && puck.x < pipeXEnd) {
-                puck.dy = -12; puck.dx = (puck.x < 400) ? 10 : -10; puck.y = canvas.height - puck.radius - 15;
+                puck.dy = -12; puck.dx = (puck.x < centerX) ? 10 : -10; puck.y = canvas.height - puck.radius - 15;
             }
         }
         
         if (currentRound >= 3) {
-            goalY += 5 * goalDir;
+            goalY += 6 * goalDir;
             if (goalY > canvas.height - goalHeight || goalY < 0) goalDir *= -1;
         }
 
@@ -213,7 +212,6 @@
         let dy = puck.y - centerY;
         let dist = Math.sqrt(dx*dx + dy*dy);
 
-        // Gravity core pull toward center
         if (dist < 200) {
             puck.dx -= dx * 0.0015;
             puck.dy -= dy * 0.0015;
@@ -223,7 +221,6 @@
             let angle = Math.atan2(dy, dx);
             let deg = angle * (180 / Math.PI);
             
-            // Goals at 0 deg (right) and 180 deg (left) - slightly wider hitboxes for fun
             if (Math.abs(deg) < 22) { scores.p1++; resetPuck(); }
             else if (Math.abs(deg) > 158) { scores.p2++; resetPuck(); }
             else {
@@ -246,8 +243,8 @@
         if (dist < paddle.radius + pk.radius) {
             let angle = Math.atan2(dy, dx);
             let speed = Math.sqrt(pk.dx**2 + pk.dy**2) + 3;
-            pk.dx = Math.cos(angle) * Math.min(speed, 22);
-            pk.dy = Math.sin(angle) * Math.min(speed, 22);
+            pk.dx = Math.cos(angle) * Math.min(speed, 24);
+            pk.dy = Math.sin(angle) * Math.min(speed, 24);
             pk.x = paddle.x + Math.cos(angle) * (paddle.radius + pk.radius + 2);
             pk.y = paddle.y + Math.sin(angle) * (paddle.radius + pk.radius + 2);
         }
@@ -257,7 +254,7 @@
         document.getElementById('s1').innerText = scores.p1;
         document.getElementById('s2').innerText = scores.p2;
         document.getElementById('round-num').innerText = currentRound;
-        const labels = ["WARP PIPES", "GRAVITY COLOSSEUM", "SHIFTING GATES"];
+        const labels = ["VELOCITY SURGE", "Zero-G Colosseum", "Shifting Nexus"];
         document.getElementById('table-type').innerText = labels[currentRound-1] || "FINAL";
         
         const renderDots = (id, pts) => {
@@ -267,53 +264,66 @@
         };
         renderDots('series-p1', seriesPoints.p1);
         renderDots('series-p2', seriesPoints.p2);
-        document.getElementById('overlay').style.display = gameActive ? 'none' : 'block';
+
+        if (!gameActive) {
+            const isMatchOver = seriesPoints.p1 >= SERIES_TO_WIN || seriesPoints.p2 >= SERIES_TO_WIN;
+            document.getElementById('winner-text').innerText = isMatchOver ? lastWinnerLabel + " WINS MATCH!" : lastWinnerLabel + " WINS ROUND!";
+            document.getElementById('overlay').style.display = 'block';
+        } else {
+            document.getElementById('overlay').style.display = 'none';
+        }
     }
 
     function resetPuck() {
         puck.x = centerX; puck.y = centerY;
         puck.dx = 0; puck.dy = 0;
-        if(isHost && scores.p1 >= WIN_SCORE) startNewRound("PLAYER 1");
-        else if(isHost && scores.p2 >= WIN_SCORE) startNewRound("PLAYER 2");
-        else respawnTimer = 180;
+        if(isHost) {
+            if (scores.p1 >= WIN_SCORE) startNewRound("PLAYER 1");
+            else if (scores.p2 >= WIN_SCORE) startNewRound("PLAYER 2");
+            else respawnTimer = 180;
+        }
     }
 
     function startNewRound(winner) {
         gameActive = false;
+        lastWinnerLabel = winner;
         seriesPoints[winner === "PLAYER 1" ? 'p1' : 'p2']++;
+        
         const isMatchOver = seriesPoints.p1 >= SERIES_TO_WIN || seriesPoints.p2 >= SERIES_TO_WIN;
-        document.getElementById('winner-text').innerText = isMatchOver ? winner + " WINS MATCH!" : winner + " WINS ROUND!";
         if (isMatchOver && isHost) document.getElementById('restart-btn').style.display = 'inline-block';
+        
         updateUI();
+        syncData(); // Important to push the win label immediately
+
         if (!isMatchOver) {
             setTimeout(() => {
-                scores = {p1:0, p2:0}; currentRound++; gameActive = true; resetPuck(); updateUI();
+                scores = {p1:0, p2:0}; 
+                currentRound++; 
+                gameActive = true; 
+                resetPuck(); 
+                updateUI();
             }, 3000);
         }
     }
 
     function resetFullMatch() {
         seriesPoints = { p1: 0, p2: 0 }; scores = { p1: 0, p2: 0 };
-        currentRound = 1; gameActive = true;
+        currentRound = 1; gameActive = true; lastWinnerLabel = "";
         document.getElementById('restart-btn').style.display = 'none';
         resetPuck(); updateUI();
     }
 
     function draw() {
-        // Background
         ctx.fillStyle = '#050505';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
         if (currentRound === 2) {
-            // DRAW CIRCULAR ARENA
             ctx.save();
             ctx.beginPath();
             ctx.arc(centerX, centerY, tableRadius, 0, Math.PI * 2);
             ctx.clip();
             ctx.fillStyle = '#000';
             ctx.fillRect(0,0, canvas.width, canvas.height);
-            
-            // Subtle Radial Glow
             let grad = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, tableRadius);
             grad.addColorStop(0, 'rgba(0, 255, 255, 0.08)');
             grad.addColorStop(1, 'transparent');
@@ -327,14 +337,12 @@
             ctx.lineWidth = 10;
             ctx.stroke();
 
-            // Goal Arcs
             ctx.lineWidth = 15;
-            ctx.strokeStyle = '#f0f'; // Left
+            ctx.strokeStyle = '#f0f'; 
             ctx.beginPath(); ctx.arc(centerX, centerY, tableRadius, Math.PI - 0.4, Math.PI + 0.4); ctx.stroke();
-            ctx.strokeStyle = '#0ff'; // Right
+            ctx.strokeStyle = '#0ff'; 
             ctx.beginPath(); ctx.arc(centerX, centerY, tableRadius, -0.4, 0.4); ctx.stroke();
         } else {
-            // DRAW RECTANGULAR ARENA
             ctx.fillStyle = '#000';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             ctx.strokeStyle = '#333'; ctx.lineWidth = 10;
@@ -345,24 +353,20 @@
             ctx.fillStyle = '#f0f'; ctx.fillRect(canvas.width-10, curY, 10, goalHeight);
         }
 
-        // Warp Pipes decoration
         if (currentRound === 1) {
             ctx.shadowBlur = 20; ctx.shadowColor = '#0f0'; ctx.fillStyle = '#0f0';
-            ctx.fillRect(325, -10, 150, 15); ctx.fillRect(325, canvas.height - 5, 150, 15);
+            ctx.fillRect(centerX-75, -10, 150, 15); ctx.fillRect(centerX-75, canvas.height - 5, 150, 15);
         }
 
-        // Midline
         ctx.shadowBlur = 0; ctx.setLineDash([10, 10]); ctx.strokeStyle = '#222';
         ctx.beginPath(); ctx.moveTo(centerX, 0); ctx.lineTo(centerX, canvas.height); ctx.stroke();
         ctx.setLineDash([]);
 
-        // Puck
         ctx.shadowBlur = 15; ctx.shadowColor = '#fff'; ctx.fillStyle = '#fff';
         ctx.beginPath(); ctx.arc(puck.x, puck.y, puck.radius, 0, Math.PI*2); ctx.fill();
         
         drawP(p1); drawP(p2);
 
-        // Timer
         if (respawnTimer > 0) {
             ctx.textAlign = "center";
             ctx.shadowBlur = 10; ctx.shadowColor = "#000";
