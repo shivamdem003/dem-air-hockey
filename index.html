@@ -24,7 +24,6 @@
         
         #pause-btn { background: #ffaa00; }
         .pause-count { font-size: 0.8rem; color: #888; margin-left: 5px; }
-
         input { background: #111; border: 1px solid #444; color: white; padding: 8px; border-radius: 4px; outline: none; width: 180px; }
         
         #overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.96); padding: 40px; border-radius: 20px; text-align: center; border: 2px solid #0ff; display: none; z-index: 100; min-width: 500px; }
@@ -38,23 +37,13 @@
 
         .rank-box { margin-bottom: 15px; }
         .rank-letter { font-size: 4rem; font-weight: 900; line-height: 1; margin: 5px 0; }
-        
-        .rank-s-plus { 
-            color: #ffffff; 
-            text-shadow: 0 0 15px #fff, 0 0 25px #0ff, 0 0 35px #0ff; 
-            animation: rankGlow 1.5s ease-in-out infinite alternate;
-        }
-        @keyframes rankGlow {
-            from { text-shadow: 0 0 10px #fff, 0 0 20px #0ff; }
-            to { text-shadow: 0 0 20px #fff, 0 0 40px #0ff, 0 0 50px #0ff; }
-        }
-
+        .rank-s-plus { color: #ffffff; text-shadow: 0 0 15px #fff, 0 0 25px #0ff, 0 0 35px #0ff; animation: rankGlow 1.5s ease-in-out infinite alternate; }
+        @keyframes rankGlow { from { text-shadow: 0 0 10px #fff, 0 0 20px #0ff; } to { text-shadow: 0 0 20px #fff, 0 0 40px #0ff, 0 0 50px #0ff; } }
         .rank-s { color: #ffdf00; text-shadow: 0 0 20px rgba(255,223,0,0.5); }
         .rank-a { color: #ff4e00; text-shadow: 0 0 10px rgba(255,78,0,0.3); }
         .rank-b { color: #00ff00; }
         .rank-c { color: #0084ff; }
         .rank-d { color: #888; }
-
         #status { color: #555; margin-top: 10px; font-size: 0.9rem; }
     </style>
 </head>
@@ -74,12 +63,10 @@
             <div class="score" id="s1">0</div>
             <div id="series-p1" class="series-dots">● ●</div>
         </div>
-        
         <div class="round-display">
             <div id="round-label"><b>ROUND <span id="round-num">1</span></b></div>
             <span id="table-type">VELOCITY SURGE</span>
         </div>
-
         <div style="display: flex; flex-direction: column; align-items: center;">
             <div class="score" id="s2" style="color:#f0f; text-shadow: 0 0 10px #f0f;">0</div>
             <div id="series-p2" class="series-dots p2">● ●</div>
@@ -92,33 +79,16 @@
     <div id="overlay">
         <h1 id="winner-text" style="margin:0; font-size: 2.2rem;">-</h1>
         <p id="sub-text" style="color: #888; font-size: 1rem; margin-top: 5px;">Preparing arena...</p>
-        
         <div id="stats-ui" class="stats-container" style="display:none;">
             <div class="stats-grid">
-                <div class="rank-box">
-                    <div class="stat-label">Rank</div>
-                    <div class="rank-letter" id="rank-p1">C</div>
-                </div>
+                <div class="rank-box"><div class="stat-label">Rank</div><div class="rank-letter" id="rank-p1">C</div></div>
                 <div></div>
-                <div class="rank-box">
-                    <div class="stat-label">Rank</div>
-                    <div class="rank-letter" id="rank-p2">C</div>
-                </div>
-
-                <div class="stat-val p1-stat" id="stat-p1-goals">0</div>
-                <div class="stat-label">Total Goals</div>
-                <div class="stat-val p2-stat" id="stat-p2-goals">0</div>
-
-                <div class="stat-val p1-stat" id="stat-p1-saves">0</div>
-                <div class="stat-label">Critical Saves</div>
-                <div class="stat-val p2-stat" id="stat-p2-saves">0</div>
-
-                <div class="stat-val p1-stat" id="stat-p1-own">0</div>
-                <div class="stat-label">Own Goals</div>
-                <div class="stat-val p2-stat" id="stat-p2-own">0</div>
+                <div class="rank-box"><div class="stat-label">Rank</div><div class="rank-letter" id="rank-p2">C</div></div>
+                <div class="stat-val p1-stat" id="stat-p1-goals">0</div><div class="stat-label">Total Goals</div><div class="stat-val p2-stat" id="stat-p2-goals">0</div>
+                <div class="stat-val p1-stat" id="stat-p1-saves">0</div><div class="stat-label">Critical Saves</div><div class="stat-val p2-stat" id="stat-p2-saves">0</div>
+                <div class="stat-val p1-stat" id="stat-p1-own">0</div><div class="stat-label">Own Goals</div><div class="stat-val p2-stat" id="stat-p2-own">0</div>
             </div>
         </div>
-
         <div style="margin-top:25px; display: flex; gap:10px; justify-content: center;">
             <button id="resume-btn" style="display:none; background:#0f0;" onclick="resumeGame()">Resume</button>
             <button id="restart-btn" style="display:none;" onclick="resetFullMatch()">Start New Series</button>
@@ -128,383 +98,193 @@
 <script>
     // --- AUDIO SYSTEM ---
     const AudioEngine = {
-        ctx: null,
+        ctx: null, crowdNode: null, crowdGain: null, crowdFilter: null,
         init() {
-            if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+            if (!this.ctx) {
+                this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                this.setupCrowd();
+            }
             if (this.ctx.state === 'suspended') this.ctx.resume();
+        },
+        setupCrowd() {
+            const bufferSize = 2 * this.ctx.sampleRate, buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate), output = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) output[i] = Math.random() * 2 - 1;
+            this.crowdNode = this.ctx.createBufferSource();
+            this.crowdNode.buffer = buffer; this.crowdNode.loop = true;
+            this.crowdGain = this.ctx.createGain(); this.crowdGain.gain.value = 0;
+            this.crowdFilter = this.ctx.createBiquadFilter(); this.crowdFilter.type = 'bandpass'; this.crowdFilter.frequency.value = 400;
+            this.crowdNode.connect(this.crowdFilter); this.crowdFilter.connect(this.crowdGain); this.crowdGain.connect(this.ctx.destination);
+            this.crowdNode.start();
+        },
+        updateCrowdIntensity(score1, score2) {
+            if (!this.crowdGain) return;
+            const maxScore = Math.max(score1, score2), intensity = Math.min(maxScore / 13, 1);
+            this.crowdGain.gain.setTargetAtTime(intensity * 0.08, this.ctx.currentTime, 0.5);
+            this.crowdFilter.frequency.setTargetAtTime(400 + (intensity * 1200), this.ctx.currentTime, 0.5);
         },
         playClash() {
             this.init();
-            const osc = this.ctx.createOscillator();
-            const gain = this.ctx.createGain();
-            osc.type = 'triangle';
-            osc.frequency.setValueAtTime(800, this.ctx.currentTime);
+            const osc = this.ctx.createOscillator(), gain = this.ctx.createGain();
+            osc.type = 'triangle'; osc.frequency.setValueAtTime(800, this.ctx.currentTime);
             osc.frequency.exponentialRampToValueAtTime(100, this.ctx.currentTime + 0.1);
-            gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+            gain.gain.setValueAtTime(0.12, this.ctx.currentTime);
             gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.1);
             osc.connect(gain); gain.connect(this.ctx.destination);
             osc.start(); osc.stop(this.ctx.currentTime + 0.1);
         },
         playGoal() {
             this.init();
-            const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
-            notes.forEach((freq, i) => {
-                const osc = this.ctx.createOscillator();
-                const gain = this.ctx.createGain();
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(freq, this.ctx.currentTime + i * 0.1);
-                gain.gain.setValueAtTime(0.1, this.ctx.currentTime + i * 0.1);
+            [523, 659, 784, 1046].forEach((f, i) => {
+                const osc = this.ctx.createOscillator(), gain = this.ctx.createGain();
+                osc.type = 'sine'; osc.frequency.setValueAtTime(f, this.ctx.currentTime + i * 0.1);
+                gain.gain.setValueAtTime(0.08, this.ctx.currentTime + i * 0.1);
                 gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + i * 0.1 + 0.4);
                 osc.connect(gain); gain.connect(this.ctx.destination);
-                osc.start(this.ctx.currentTime + i * 0.1);
-                osc.stop(this.ctx.currentTime + i * 0.1 + 0.4);
+                osc.start(this.ctx.currentTime + i * 0.1); osc.stop(this.ctx.currentTime + i * 0.1 + 0.4);
             });
         }
     };
 
     const canvas = document.getElementById('gameCanvas');
-    const ctx = canvas.getContext('2d');
-    const peer = new Peer(); 
-    let conn;
-    let isHost = false, gameActive = true, isPaused = false, disconnected = false;
-
-    const centerX = 500, centerY = 300, tableRadius = 280, cornerRadius = 45, goalHeight = 160;
-    const WIN_SCORE = 13, SERIES_TO_WIN = 2;
-    
+    const ctx = canvas.getContext('2d'), peer = new Peer(); 
+    let conn, isHost = false, gameActive = true, isPaused = false, disconnected = false;
+    const centerX = 500, centerY = 300, tableRadius = 280, goalHeight = 160, WIN_SCORE = 13, SERIES_TO_WIN = 2;
     let currentRound = 1, lastWinnerLabel = "", shakeIntensity = 0; 
-    let scores = { p1: 0, p2: 0 }, seriesPoints = { p1: 0, p2: 0 }, pausesLeft = { p1: 4, p2: 4 };
-    let respawnTimer = 0, lastHitter = 0;
-
-    let matchStats = {
-        p1: { goals: 0, saves: 0, ownGoals: 0, rank: "C" },
-        p2: { goals: 0, saves: 0, ownGoals: 0, rank: "C" }
-    };
-
+    let scores = { p1: 0, p2: 0 }, seriesPoints = { p1: 0, p2: 0 }, pausesLeft = { p1: 4, p2: 4 }, respawnTimer = 0, lastHitter = 0;
+    let matchStats = { p1: { goals: 0, saves: 0, ownGoals: 0, rank: "C" }, p2: { goals: 0, saves: 0, ownGoals: 0, rank: "C" } };
     const puck = { x: 500, y: 300, dx: 0, dy: 0, radius: 15, friction: 0.993 };
-    const p1 = { x: 150, y: 300, vx: 0, vy: 0, radius: 32, color: '#0ff' };
-    const p2 = { x: 850, y: 300, vx: 0, vy: 0, radius: 32, color: '#f0f' };
+    const p1 = { x: 150, y: 300, vx: 0, vy: 0, radius: 32, color: '#0ff' }, p2 = { x: 850, y: 300, vx: 0, vy: 0, radius: 32, color: '#f0f' };
     let goalY = (canvas.height - goalHeight) / 2, goalDir = 1;
 
     peer.on('open', id => document.getElementById('my-id').innerText = id);
-    peer.on('connection', c => { 
-        AudioEngine.init(); // Wake audio on connection
-        conn = c; isHost = true; setupConnection(); 
-    });
+    peer.on('connection', c => { AudioEngine.init(); conn = c; isHost = true; setupConnection(); });
 
     function connectToFriend() {
-        AudioEngine.init(); // Wake audio on button click
-        const remoteId = document.getElementById('remote-id').value;
+        AudioEngine.init(); const remoteId = document.getElementById('remote-id').value;
         if (!remoteId) return alert("Enter ID!");
-        conn = peer.connect(remoteId);
-        isHost = false; setupConnection();
+        conn = peer.connect(remoteId); isHost = false; setupConnection();
     }
 
     function setupConnection() {
-        conn.on('open', () => {
-            document.getElementById('status').innerText = "LINK ESTABLISHED";
-            disconnected = false; if(isHost) resetPuck();
-            gameLoop();
-        });
+        conn.on('open', () => { document.getElementById('status').innerText = "LINK ESTABLISHED"; disconnected = false; if(isHost) resetPuck(); gameLoop(); });
         conn.on('close', () => handleDisconnection());
         conn.on('data', data => {
-            if (data.type === 'PAUSE_REQ') handlePauseRequest(data.player);
-            else if (data.type === 'RESUME') { isPaused = false; updateUI(); }
-            else if (data.type === 'CLASH_SOUND') AudioEngine.playClash();
+            if (data.type === 'CLASH_SOUND') AudioEngine.playClash();
             else if (data.type === 'GOAL_SOUND') AudioEngine.playGoal();
-            else if (isHost) {
-                p2.vx = data.x - p2.x; p2.vy = data.y - p2.y;
-                p2.x = data.x; p2.y = data.y;
-            } else {
+            else if (isHost) { p2.vx = data.x - p2.x; p2.vy = data.y - p2.y; p2.x = data.x; p2.y = data.y; }
+            else { 
                 p1.x = data.p1.x; p1.y = data.p1.y; puck.x = data.puck.x; puck.y = data.puck.y;
                 scores = data.scores; seriesPoints = data.series; pausesLeft = data.pausesLeft;
                 currentRound = data.round; gameActive = data.gameActive; isPaused = data.isPaused;
                 matchStats = data.stats; goalY = data.goalY; respawnTimer = data.respawnTimer;
-                lastWinnerLabel = data.lastWinnerLabel; 
-                if (respawnTimer >= 158) shakeIntensity = 12;
-                updateUI();
+                lastWinnerLabel = data.lastWinnerLabel; if (respawnTimer >= 158) shakeIntensity = 12;
+                updateUI(); AudioEngine.updateCrowdIntensity(scores.p1, scores.p2);
             }
         });
     }
 
-    function handleDisconnection() {
-        if (disconnected) return;
-        disconnected = true; gameActive = false; isPaused = false; updateUI();
-        document.getElementById('overlay').style.display = 'block';
-        document.getElementById('winner-text').innerText = "CONNECTION LOST";
-    }
-
-    function requestPause() {
-        if (!gameActive || isPaused || disconnected) return;
-        const pKey = isHost ? 'p1' : 'p2';
-        if (pausesLeft[pKey] > 0) {
-            if (isHost) handlePauseRequest('p1');
-            else conn.send({ type: 'PAUSE_REQ', player: 'p2' });
-        }
-    }
-
-    function handlePauseRequest(player) {
-        if (pausesLeft[player] > 0) {
-            isPaused = true; pausesLeft[player]--;
-            syncData(); updateUI();
-        }
-    }
-
-    function resumeGame() {
-        isPaused = false;
-        if (isHost) syncData(); else if (conn) conn.send({ type: 'RESUME' });
-        updateUI();
-    }
+    function handleDisconnection() { disconnected = true; gameActive = false; updateUI(); }
+    function requestPause() { if (!gameActive || isPaused || disconnected) return; const pKey = isHost ? 'p1' : 'p2'; if (pausesLeft[pKey] > 0) isHost ? handlePauseRequest('p1') : conn.send({ type: 'PAUSE_REQ', player: 'p2' }); }
+    function handlePauseRequest(player) { if (pausesLeft[player] > 0) { isPaused = true; pausesLeft[player]--; syncData(); updateUI(); } }
+    function resumeGame() { isPaused = false; isHost ? syncData() : conn.send({ type: 'RESUME' }); updateUI(); }
 
     canvas.addEventListener('mousemove', e => {
         if (!gameActive || isPaused || disconnected) return;
-        const rect = canvas.getBoundingClientRect();
-        const mx = e.clientX - rect.left, my = e.clientY - rect.top;
-        if (isHost) {
-            p1.vx = mx - p1.x; p1.vy = my - p1.y;
-            p1.x = Math.min(mx, canvas.width/2 - p1.radius);
-            p1.y = Math.max(p1.radius, Math.min(canvas.height - p1.radius, my));
-            if (currentRound === 2) applyCircleConstraint(p1, "left");
-        } else {
-            p2.x = Math.max(mx, canvas.width/2 + p2.radius);
-            p2.y = Math.max(p2.radius, Math.min(canvas.height - p2.radius, my));
-            if (currentRound === 2) applyCircleConstraint(p2, "right");
-            if (conn && conn.open) conn.send({ x: p2.x, y: p2.y });
-        }
+        const rect = canvas.getBoundingClientRect(), mx = e.clientX - rect.left, my = e.clientY - rect.top;
+        if (isHost) { p1.vx = mx - p1.x; p1.vy = my - p1.y; p1.x = Math.min(mx, canvas.width/2 - p1.radius); p1.y = Math.max(p1.radius, Math.min(canvas.height - p1.radius, my)); if (currentRound === 2) applyCircleConstraint(p1, "left"); }
+        else { p2.x = Math.max(mx, canvas.width/2 + p2.radius); p2.y = Math.max(p2.radius, Math.min(canvas.height - p2.radius, my)); if (currentRound === 2) applyCircleConstraint(p2, "right"); if (conn && conn.open) conn.send({ x: p2.x, y: p2.y }); }
     });
 
     function applyCircleConstraint(p, side) {
         let dx = p.x - centerX, dy = p.y - centerY, dist = Math.sqrt(dx*dx + dy*dy);
-        if (dist > tableRadius - p.radius) {
-            let angle = Math.atan2(dy, dx);
-            p.x = centerX + Math.cos(angle) * (tableRadius - p.radius);
-            p.y = centerY + Math.sin(angle) * (tableRadius - p.radius);
-        }
+        if (dist > tableRadius - p.radius) { let angle = Math.atan2(dy, dx); p.x = centerX + Math.cos(angle) * (tableRadius - p.radius); p.y = centerY + Math.sin(angle) * (tableRadius - p.radius); }
         p.x = (side === "left") ? Math.min(p.x, centerX - 5) : Math.max(p.x, centerX + 5);
     }
 
     function update() {
         if (shakeIntensity > 0) shakeIntensity *= 0.92;
         if (isPaused || disconnected || !isHost || !gameActive) return;
-
-        if (respawnTimer > 0) {
-            respawnTimer--;
-            if (respawnTimer === 0) {
-                puck.dx = (Math.random() > 0.5 ? 3.5 : -3.5);
-                puck.dy = (Math.random() - 0.5) * 5;
-                lastHitter = 0;
-            }
-            syncData(); return;
-        }
-
-        puck.x += puck.dx; puck.y += puck.dy;
-        puck.dx *= puck.friction; puck.dy *= puck.friction;
-
-        if (currentRound === 2) updateCirclePhysics();
-        else updateRectPhysics();
-
-        checkCollision(p1, puck, 1);
-        checkCollision(p2, puck, 2);
+        if (respawnTimer > 0) { respawnTimer--; if (respawnTimer === 0) { puck.dx = (Math.random() > 0.5 ? 4 : -4); puck.dy = (Math.random() - 0.5) * 5; } syncData(); return; }
+        puck.x += puck.dx; puck.y += puck.dy; puck.dx *= puck.friction; puck.dy *= puck.friction;
+        currentRound === 2 ? updateCirclePhysics() : updateRectPhysics();
+        checkCollision(p1, puck, 1); checkCollision(p2, puck, 2);
         updateUI(); syncData();
     }
 
-    function syncData() {
-        if (conn && conn.open && isHost) {
-            conn.send({ p1, puck, scores, series: seriesPoints, pausesLeft, round: currentRound, gameActive, isPaused, goalY, respawnTimer, lastWinnerLabel, stats: matchStats });
-        }
-    }
+    function syncData() { if (conn && conn.open && isHost) conn.send({ p1, puck, scores, series: seriesPoints, pausesLeft, round: currentRound, gameActive, isPaused, goalY, respawnTimer, lastWinnerLabel, stats: matchStats }); }
 
     function triggerGoal(scoredOnPlayer) {
-        AudioEngine.playGoal();
-        if (conn && conn.open && isHost) conn.send({ type: 'GOAL_SOUND' });
-
-        if (scoredOnPlayer === 1) {
-            scores.p2++;
-            if (lastHitter === 1) matchStats.p1.ownGoals++;
-            else if (lastHitter === 2) matchStats.p2.goals++;
-        } else {
-            scores.p1++;
-            if (lastHitter === 2) matchStats.p2.ownGoals++;
-            else if (lastHitter === 1) matchStats.p1.goals++;
-        }
-        shakeIntensity = 15; resetPuck();
+        AudioEngine.playGoal(); if (isHost) conn.send({ type: 'GOAL_SOUND' });
+        scoredOnPlayer === 1 ? (scores.p2++, lastHitter === 1 ? matchStats.p1.ownGoals++ : matchStats.p2.goals++) : (scores.p1++, lastHitter === 2 ? matchStats.p2.ownGoals++ : matchStats.p1.goals++);
+        shakeIntensity = 15; resetPuck(); AudioEngine.updateCrowdIntensity(scores.p1, scores.p2);
     }
 
     function updateRectPhysics() {
-        const curGoalTop = (currentRound === 3) ? goalY : (canvas.height - goalHeight)/2;
-        const curGoalBottom = curGoalTop + goalHeight;
-        
-        // Wall Bounce Sound logic
-        if (puck.y < puck.radius || puck.y > canvas.height - puck.radius) AudioEngine.playClash();
-
-        if (puck.y < puck.radius) { puck.y = puck.radius; puck.dy *= -1; }
-        else if (puck.y > canvas.height - puck.radius) { puck.y = canvas.height - puck.radius; puck.dy *= -1; }
-        
-        if (puck.x < puck.radius) {
-            if (puck.y > curGoalTop && puck.y < curGoalBottom) triggerGoal(1);
-            else { AudioEngine.playClash(); puck.x = puck.radius; puck.dx *= -1; }
-        } else if (puck.x > canvas.width - puck.radius) {
-            if (puck.y > curGoalTop && puck.y < curGoalBottom) triggerGoal(2);
-            else { AudioEngine.playClash(); puck.x = canvas.width - puck.radius; puck.dx *= -1; }
-        }
+        const goalTop = (currentRound === 3) ? goalY : (canvas.height - goalHeight)/2, goalBottom = goalTop + goalHeight;
+        if (puck.y < puck.radius || puck.y > canvas.height - puck.radius) { AudioEngine.playClash(); puck.y = puck.y < puck.radius ? puck.radius : canvas.height - puck.radius; puck.dy *= -1; }
+        if (puck.x < puck.radius) { if (puck.y > goalTop && puck.y < goalBottom) triggerGoal(1); else { AudioEngine.playClash(); puck.x = puck.radius; puck.dx *= -1; } }
+        else if (puck.x > canvas.width - puck.radius) { if (puck.y > goalTop && puck.y < goalBottom) triggerGoal(2); else { AudioEngine.playClash(); puck.x = canvas.width - puck.radius; puck.dx *= -1; } }
     }
 
     function updateCirclePhysics() {
         let dx = puck.x - centerX, dy = puck.y - centerY, dist = Math.sqrt(dx*dx + dy*dy);
         if (dist > tableRadius - puck.radius) {
             let angle = Math.atan2(dy, dx), deg = angle * (180 / Math.PI);
-            if (Math.abs(deg) < 22) triggerGoal(2);
-            else if (Math.abs(deg) > 158) triggerGoal(1);
-            else {
-                AudioEngine.playClash();
-                let normal = Math.atan2(dy, dx), speed = Math.sqrt(puck.dx**2 + puck.dy**2);
-                let reflection = 2 * normal - Math.atan2(puck.dy, puck.dx) + Math.PI;
-                puck.dx = Math.cos(reflection) * speed * 0.99; puck.dy = Math.sin(reflection) * speed * 0.99;
-                puck.x = centerX + Math.cos(normal) * (tableRadius - puck.radius - 2);
-                puck.y = centerY + Math.sin(normal) * (tableRadius - puck.radius - 2);
-            }
+            if (Math.abs(deg) < 22) triggerGoal(2); else if (Math.abs(deg) > 158) triggerGoal(1);
+            else { AudioEngine.playClash(); let normal = Math.atan2(dy, dx), speed = Math.sqrt(puck.dx**2 + puck.dy**2); let reflection = 2 * normal - Math.atan2(puck.dy, puck.dx) + Math.PI; puck.dx = Math.cos(reflection) * speed * 0.99; puck.dy = Math.sin(reflection) * speed * 0.99; puck.x = centerX + Math.cos(normal) * (tableRadius - puck.radius - 2); puck.y = centerY + Math.sin(normal) * (tableRadius - puck.radius - 2); }
         }
     }
 
     function checkCollision(paddle, pk, pNum) {
         let dx = pk.x - paddle.x, dy = pk.y - paddle.y, dist = Math.sqrt(dx*dx + dy*dy);
         if (dist < paddle.radius + pk.radius) {
-            AudioEngine.playClash();
-            if (conn && conn.open && isHost) conn.send({ type: 'CLASH_SOUND' });
-
+            AudioEngine.playClash(); if (isHost) conn.send({ type: 'CLASH_SOUND' });
             if ((pNum === 1 && pk.dx < 0) || (pNum === 2 && pk.dx > 0)) matchStats['p' + pNum].saves++;
-            lastHitter = pNum;
-            let angle = Math.atan2(dy, dx), impactVel = Math.sqrt(paddle.vx**2 + paddle.vy**2);
-            let speed = Math.sqrt(pk.dx**2 + pk.dy**2) + (impactVel * 0.4) + 1.5;
-            pk.dx = Math.cos(angle) * Math.min(speed, 21); pk.dy = Math.sin(angle) * Math.min(speed, 21);
-            pk.x = paddle.x + Math.cos(angle) * (paddle.radius + pk.radius + 2);
-            pk.y = paddle.y + Math.sin(angle) * (paddle.radius + pk.radius + 2);
+            lastHitter = pNum; let angle = Math.atan2(dy, dx), impactVel = Math.sqrt(paddle.vx**2 + paddle.vy**2), speed = Math.sqrt(pk.dx**2 + pk.dy**2) + (impactVel * 0.4) + 1.5;
+            pk.dx = Math.cos(angle) * Math.min(speed, 21); pk.dy = Math.sin(angle) * Math.min(speed, 21); pk.x = paddle.x + Math.cos(angle) * (paddle.radius + pk.radius + 2); pk.y = paddle.y + Math.sin(angle) * (paddle.radius + pk.radius + 2);
         }
     }
 
     function calculateGrade(pKey) {
-        const s = matchStats[pKey];
-        const score = (s.goals * 10) + (s.saves * 5) - (s.ownGoals * 20);
-        if (score >= 150 && s.ownGoals === 0) return "S+";
-        if (score >= 90 && s.ownGoals <= 1) return "S";
-        if (score >= 60) return "A";
-        if (score >= 30) return "B";
-        if (score >= 0) return "C";
-        return "D";
+        const s = matchStats[pKey], score = (s.goals * 10) + (s.saves * 5) - (s.ownGoals * 20);
+        if (score >= 150 && s.ownGoals === 0) return "S+"; if (score >= 90 && s.ownGoals <= 1) return "S";
+        return score >= 60 ? "A" : score >= 30 ? "B" : score >= 0 ? "C" : "D";
     }
 
     function updateUI() {
-        document.getElementById('s1').innerText = scores.p1;
-        document.getElementById('s2').innerText = scores.p2;
-        document.getElementById('round-num').innerText = currentRound;
-        document.getElementById('p1-pauses').innerText = pausesLeft.p1;
-        document.getElementById('p2-pauses').innerText = pausesLeft.p2;
-        
-        const isMatchOver = seriesPoints.p1 >= SERIES_TO_WIN || seriesPoints.p2 >= SERIES_TO_WIN;
-        const overlay = document.getElementById('overlay'), statsUI = document.getElementById('stats-ui');
-
-        if (isPaused) {
-            overlay.style.display = 'block';
-            document.getElementById('winner-text').innerText = "GAME PAUSED";
-            statsUI.style.display = 'none';
-        } else if (!gameActive) {
-            overlay.style.display = 'block';
-            document.getElementById('winner-text').innerText = isMatchOver ? lastWinnerLabel + " VICTORIOUS" : lastWinnerLabel + " ROUND WIN";
+        document.getElementById('s1').innerText = scores.p1; document.getElementById('s2').innerText = scores.p2; document.getElementById('round-num').innerText = currentRound;
+        const isMatchOver = seriesPoints.p1 >= SERIES_TO_WIN || seriesPoints.p2 >= SERIES_TO_WIN, overlay = document.getElementById('overlay'), statsUI = document.getElementById('stats-ui');
+        if (isPaused) { overlay.style.display = 'block'; document.getElementById('winner-text').innerText = "GAME PAUSED"; statsUI.style.display = 'none'; }
+        else if (!gameActive) {
+            overlay.style.display = 'block'; document.getElementById('winner-text').innerText = isMatchOver ? lastWinnerLabel + " VICTORIOUS" : lastWinnerLabel + " ROUND WIN";
             if (isMatchOver) {
-                statsUI.style.display = 'block';
-                const p1G = matchStats.p1.rank, p2G = matchStats.p2.rank;
-                const r1 = document.getElementById('rank-p1'), r2 = document.getElementById('rank-p2');
-                r1.innerText = p1G; r2.innerText = p2G;
+                statsUI.style.display = 'block'; const p1G = matchStats.p1.rank, p2G = matchStats.p2.rank; const r1 = document.getElementById('rank-p1'), r2 = document.getElementById('rank-p2'); r1.innerText = p1G; r2.innerText = p2G;
                 const formatClass = (grade) => `rank-letter rank-${grade.toLowerCase().replace('+', '-plus')}`;
                 r1.className = formatClass(p1G); r2.className = formatClass(p2G);
-                
-                document.getElementById('stat-p1-goals').innerText = matchStats.p1.goals;
-                document.getElementById('stat-p2-goals').innerText = matchStats.p2.goals;
-                document.getElementById('stat-p1-saves').innerText = matchStats.p1.saves;
-                document.getElementById('stat-p2-saves').innerText = matchStats.p2.saves;
-                document.getElementById('stat-p1-own').innerText = matchStats.p1.ownGoals;
-                document.getElementById('stat-p2-own').innerText = matchStats.p2.ownGoals;
+                document.getElementById('stat-p1-goals').innerText = matchStats.p1.goals; document.getElementById('stat-p2-goals').innerText = matchStats.p2.goals;
+                document.getElementById('stat-p1-saves').innerText = matchStats.p1.saves; document.getElementById('stat-p2-saves').innerText = matchStats.p2.saves;
+                document.getElementById('stat-p1-own').innerText = matchStats.p1.ownGoals; document.getElementById('stat-p2-own').innerText = matchStats.p2.ownGoals;
                 if(isHost) document.getElementById('restart-btn').style.display = 'inline-block';
             }
-        } else { overlay.style.display = 'none'; }
-        
-        const renderDots = (id, pts) => {
-            let dots = ""; for(let i=0; i<SERIES_TO_WIN; i++) dots += `<span class="${i < pts ? 'won' : ''}">●</span> `;
-            document.getElementById(id).innerHTML = dots;
-        };
+        } else overlay.style.display = 'none';
+        const renderDots = (id, pts) => { let dots = ""; for(let i=0; i<SERIES_TO_WIN; i++) dots += `<span class="${i < pts ? 'won' : ''}">●</span> `; document.getElementById(id).innerHTML = dots; };
         renderDots('series-p1', seriesPoints.p1); renderDots('series-p2', seriesPoints.p2);
     }
 
-    function resetPuck() {
-        puck.x = centerX; puck.y = centerY; puck.dx = 0; puck.dy = 0;
-        if(isHost) {
-            if (scores.p1 >= WIN_SCORE) startNewRound("PLAYER 1");
-            else if (scores.p2 >= WIN_SCORE) startNewRound("PLAYER 2");
-            else respawnTimer = 160;
-        }
-    }
-
-    function startNewRound(winner) {
-        gameActive = false; lastWinnerLabel = winner; seriesPoints[winner === "PLAYER 1" ? 'p1' : 'p2']++;
-        const isMatchOver = seriesPoints.p1 >= SERIES_TO_WIN || seriesPoints.p2 >= SERIES_TO_WIN;
-        if (isMatchOver && isHost) {
-            matchStats.p1.rank = calculateGrade('p1');
-            matchStats.p2.rank = calculateGrade('p2');
-        }
-        updateUI(); syncData(); 
-        if (!isMatchOver) {
-            setTimeout(() => {
-                scores = {p1:0, p2:0}; currentRound++; gameActive = true; resetPuck(); updateUI();
-            }, 3000);
-        }
-    }
-
-    function resetFullMatch() {
-        seriesPoints = { p1: 0, p2: 0 }; scores = { p1: 0, p2: 0 };
-        matchStats = { p1: { goals: 0, saves: 0, ownGoals: 0, rank: "C" }, p2: { goals: 0, saves: 0, ownGoals: 0, rank: "C" } };
-        currentRound = 1; gameActive = true; lastWinnerLabel = ""; pausesLeft = { p1: 4, p2: 4 };
-        document.getElementById('restart-btn').style.display = 'none';
-        resetPuck(); updateUI();
-    }
-
+    function resetPuck() { puck.x = centerX; puck.y = centerY; puck.dx = 0; puck.dy = 0; if(isHost) { if (scores.p1 >= WIN_SCORE || scores.p2 >= WIN_SCORE) startNewRound(scores.p1 >= WIN_SCORE ? "PLAYER 1" : "PLAYER 2"); else respawnTimer = 160; } }
+    function startNewRound(winner) { gameActive = false; lastWinnerLabel = winner; seriesPoints[winner === "PLAYER 1" ? 'p1' : 'p2']++; if (seriesPoints.p1 >= SERIES_TO_WIN || seriesPoints.p2 >= SERIES_TO_WIN) { matchStats.p1.rank = calculateGrade('p1'); matchStats.p2.rank = calculateGrade('p2'); } updateUI(); syncData(); if (seriesPoints.p1 < SERIES_TO_WIN && seriesPoints.p2 < SERIES_TO_WIN) setTimeout(() => { scores = {p1:0, p2:0}; currentRound++; gameActive = true; resetPuck(); updateUI(); AudioEngine.updateCrowdIntensity(0,0); }, 3000); }
+    function resetFullMatch() { seriesPoints = { p1: 0, p2: 0 }; scores = { p1: 0, p2: 0 }; matchStats = { p1: { goals: 0, saves: 0, ownGoals: 0, rank: "C" }, p2: { goals: 0, saves: 0, ownGoals: 0, rank: "C" } }; currentRound = 1; gameActive = true; lastWinnerLabel = ""; pausesLeft = { p1: 4, p2: 4 }; document.getElementById('restart-btn').style.display = 'none'; resetPuck(); updateUI(); AudioEngine.updateCrowdIntensity(0,0); }
     function draw() {
-        ctx.save();
-        if (shakeIntensity > 0.5) ctx.translate((Math.random()-0.5)*shakeIntensity, (Math.random()-0.5)*shakeIntensity);
+        ctx.save(); if (shakeIntensity > 0.5) ctx.translate((Math.random()-0.5)*shakeIntensity, (Math.random()-0.5)*shakeIntensity);
         ctx.fillStyle = '#050505'; ctx.fillRect(-20, -20, canvas.width+40, canvas.height+40);
-        if (currentRound === 2) {
-            ctx.save(); ctx.beginPath(); ctx.arc(centerX, centerY, tableRadius, 0, Math.PI * 2); ctx.clip();
-            ctx.fillStyle = '#000'; ctx.fillRect(0,0, canvas.width, canvas.height);
-            let grad = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, tableRadius);
-            grad.addColorStop(0, 'rgba(0, 255, 255, 0.05)'); grad.addColorStop(1, 'transparent');
-            ctx.fillStyle = grad; ctx.fill(); ctx.restore();
-            ctx.beginPath(); ctx.arc(centerX, centerY, tableRadius, 0, Math.PI * 2);
-            ctx.strokeStyle = '#222'; ctx.lineWidth = 6; ctx.stroke();
-            ctx.lineWidth = 12; ctx.strokeStyle = '#f0f'; ctx.beginPath(); ctx.arc(centerX, centerY, tableRadius, Math.PI - 0.35, Math.PI + 0.35); ctx.stroke();
-            ctx.strokeStyle = '#0ff'; ctx.beginPath(); ctx.arc(centerX, centerY, tableRadius, -0.35, 0.35); ctx.stroke();
-        } else {
-            ctx.strokeStyle = '#222'; ctx.lineWidth = 6; ctx.beginPath(); ctx.roundRect(0, 0, canvas.width, canvas.height, cornerRadius); ctx.stroke();
-            const curY = (currentRound === 3) ? goalY : (canvas.height - goalHeight)/2;
-            ctx.fillStyle = '#0ff'; ctx.fillRect(0, curY, 6, goalHeight);
-            ctx.fillStyle = '#f0f'; ctx.fillRect(canvas.width-6, curY, 6, goalHeight);
-        }
-        ctx.shadowBlur = 0; ctx.setLineDash([15, 15]); ctx.strokeStyle = '#1a1a1a';
-        ctx.beginPath(); ctx.moveTo(centerX, 0); ctx.lineTo(centerX, canvas.height); ctx.stroke();
-        ctx.setLineDash([]); ctx.shadowBlur = 8; ctx.shadowColor = '#fff'; ctx.fillStyle = '#fff';
-        ctx.beginPath(); ctx.arc(puck.x, puck.y, puck.radius, 0, Math.PI*2); ctx.fill();
-        drawP(p1); drawP(p2);
-        if (respawnTimer > 0) {
-            ctx.textAlign = "center"; ctx.shadowBlur = 0;
-            if (respawnTimer > 110) { ctx.fillStyle = "#fff"; ctx.font = "bold 70px 'Segoe UI'"; ctx.fillText("GOAL!", centerX, centerY - 20); }
-            else { ctx.fillStyle = "#0ff"; ctx.font = "bold 90px 'Segoe UI'"; ctx.fillText(Math.ceil(respawnTimer / 60), centerX, centerY + 30); }
-        }
+        if (currentRound === 2) { ctx.save(); ctx.beginPath(); ctx.arc(centerX, centerY, tableRadius, 0, Math.PI * 2); ctx.clip(); ctx.fillStyle = '#000'; ctx.fillRect(0,0, canvas.width, canvas.height); let grad = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, tableRadius); grad.addColorStop(0, 'rgba(0, 255, 255, 0.05)'); grad.addColorStop(1, 'transparent'); ctx.fillStyle = grad; ctx.fill(); ctx.restore(); ctx.beginPath(); ctx.arc(centerX, centerY, tableRadius, 0, Math.PI * 2); ctx.strokeStyle = '#222'; ctx.lineWidth = 6; ctx.stroke(); ctx.lineWidth = 12; ctx.strokeStyle = '#f0f'; ctx.beginPath(); ctx.arc(centerX, centerY, tableRadius, Math.PI - 0.35, Math.PI + 0.35); ctx.stroke(); ctx.strokeStyle = '#0ff'; ctx.beginPath(); ctx.arc(centerX, centerY, tableRadius, -0.35, 0.35); ctx.stroke(); }
+        else { ctx.strokeStyle = '#222'; ctx.lineWidth = 6; ctx.beginPath(); ctx.roundRect(0, 0, canvas.width, canvas.height, 45); ctx.stroke(); const curY = (currentRound === 3) ? goalY : (canvas.height - goalHeight)/2; ctx.fillStyle = '#0ff'; ctx.fillRect(0, curY, 6, goalHeight); ctx.fillStyle = '#f0f'; ctx.fillRect(canvas.width-6, curY, 6, goalHeight); }
+        ctx.shadowBlur = 0; ctx.setLineDash([15, 15]); ctx.strokeStyle = '#1a1a1a'; ctx.beginPath(); ctx.moveTo(centerX, 0); ctx.lineTo(centerX, canvas.height); ctx.stroke();
+        ctx.setLineDash([]); ctx.shadowBlur = 8; ctx.shadowColor = '#fff'; ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(puck.x, puck.y, puck.radius, 0, Math.PI*2); ctx.fill();
+        drawP(p1); drawP(p2); if (respawnTimer > 0) { ctx.textAlign = "center"; ctx.shadowBlur = 0; if (respawnTimer > 110) { ctx.fillStyle = "#fff"; ctx.font = "bold 70px 'Segoe UI'"; ctx.fillText("GOAL!", centerX, centerY - 20); } else { ctx.fillStyle = "#0ff"; ctx.font = "bold 90px 'Segoe UI'"; ctx.fillText(Math.ceil(respawnTimer / 60), centerX, centerY + 30); } }
         ctx.restore(); 
     }
-
-    function drawP(p) {
-        ctx.shadowBlur = 12; ctx.shadowColor = p.color; ctx.fillStyle = p.color;
-        ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2); ctx.fill();
-        ctx.shadowBlur = 0; ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 2; ctx.stroke();
-    }
-
+    function drawP(p) { ctx.shadowBlur = 12; ctx.shadowColor = p.color; ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2); ctx.fill(); ctx.shadowBlur = 0; ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 2; ctx.stroke(); }
     function gameLoop() { update(); draw(); requestAnimationFrame(gameLoop); }
 </script>
 </body>
