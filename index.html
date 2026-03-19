@@ -76,7 +76,7 @@
 
     <div id="overlay">
         <h1 id="winner-text" style="margin:0; font-size: 2.2rem;">-</h1>
-        <p id="sub-text" style="color: #888; font-size: 1rem; margin-top: 5px;">Post-Match Analysis</p>
+        <p id="sub-text" style="color: #888; font-size: 1rem; margin-top: 5px;">Match Analysis Complete</p>
         
         <div id="stats-ui" class="stats-container" style="display:none;">
             <div class="stats-grid">
@@ -116,22 +116,19 @@
 
     const centerX = 500, centerY = 300, tableRadius = 280, cornerRadius = 45, goalHeight = 160;
     const WIN_SCORE = 13, SERIES_TO_WIN = 2;
-    const MAP_NAMES = ["VORTEX PIPES", "GRAVITY WELL", "SHIFTING BORDER"];
+    const MAP_NAMES = ["ACCELERATION SURGE", "GRAVITY WELL", "SHIFTING VORTEX"];
     
     let currentRound = 1, lastWinnerLabel = "", shakeIntensity = 0; 
     let scores = { p1: 0, p2: 0 }, seriesPoints = { p1: 0, p2: 0 }, pausesLeft = { p1: 4, p2: 4 };
     let respawnTimer = 0, lastHitter = 0;
 
-    // STAT TRACKING
     let matchStats = {
         p1: { goals: 0, saves: 0, ownGoals: 0, totalHits: 0, rank: "C" },
         p2: { goals: 0, saves: 0, ownGoals: 0, totalHits: 0, rank: "C" }
     };
 
-    // PHYSICS: OVERRIDDEN AS REQUESTED
-    const puck = { x: 500, y: 300, dx: 0, dy: 0, radius: 15, friction: 0.990, maxSpeed: 20 };
-    const WALL_BOUNCE = -0.81;
-
+    // PHYSICS: Slower, Natural Movement
+    const puck = { x: 500, y: 300, dx: 0, dy: 0, radius: 15, friction: 0.988, maxSpeed: 17 };
     const p1 = { x: 150, y: 300, vx: 0, vy: 0, lastX: 150, lastY: 300, radius: 32, color: '#0ff' };
     const p2 = { x: 850, y: 300, vx: 0, vy: 0, lastX: 850, lastY: 300, radius: 32, color: '#f0f' };
     let goalY = (canvas.height - goalHeight) / 2, goalDir = 1;
@@ -213,6 +210,7 @@
         p.x = (side === "left") ? Math.min(p.x, centerX - p.radius - 3) : Math.max(p.x, centerX + p.radius + 3);
     }
 
+    // RANKING ENGINE (Host side logic)
     function calculateGrade(pKey) {
         const s = matchStats[pKey];
         const isWinner = seriesPoints[pKey] >= SERIES_TO_WIN;
@@ -221,7 +219,9 @@
         const offenseBonus = s.goals * 45;
         const penalty = s.ownGoals * 80;
         const winBonus = isWinner ? 200 : 0;
+
         const totalScore = Math.max(0, efficiencyBase + defenseBonus + offenseBonus + winBonus - penalty);
+        
         if (totalScore >= 950) return "S";
         if (totalScore >= 700) return "A";
         if (totalScore >= 450) return "B";
@@ -244,12 +244,14 @@
             syncData(); return;
         }
 
+        // Map 2: Gravity Well Logic
         if (currentRound === 2) {
             let dx = centerX - puck.x, dy = centerY - puck.y;
             let dist = Math.sqrt(dx*dx + dy*dy);
             if (dist > 5) {
-                puck.dx += (dx / dist) * 0.12;
-                puck.dy += (dy / dist) * 0.12;
+                let gravityStrength = 0.12; 
+                puck.dx += (dx / dist) * gravityStrength;
+                puck.dy += (dy / dist) * gravityStrength;
             }
         }
 
@@ -309,12 +311,13 @@
         const curGoalTop = (currentRound === 3) ? goalY : (canvas.height - goalHeight)/2;
         const curGoalBottom = curGoalTop + goalHeight;
         
+        // Map 1: Vortex Pipes Accelerators
         if (currentRound === 1) {
             const pxStart = centerX - 75, pxEnd = centerX + 75;
             if (puck.y < puck.radius && puck.x > pxStart && puck.x < pxEnd) {
-                puck.dy = 13; puck.y = puck.radius + 5;
+                puck.dy = 13; puck.y = puck.radius + 5; shakeIntensity = 6;
             } else if (puck.y > canvas.height - puck.radius && puck.x > pxStart && puck.x < pxEnd) {
-                puck.dy = -13; puck.y = canvas.height - puck.radius - 5;
+                puck.dy = -13; puck.y = canvas.height - puck.radius - 5; shakeIntensity = 6;
             }
         }
 
@@ -323,15 +326,15 @@
             if (goalY > canvas.height - goalHeight || goalY < 0) goalDir *= -1;
         }
 
-        if (puck.y < puck.radius) { puck.y = puck.radius; puck.dy *= WALL_BOUNCE; }
-        else if (puck.y > canvas.height - puck.radius) { puck.y = canvas.height - puck.radius; puck.dy *= WALL_BOUNCE; }
+        if (puck.y < puck.radius) { puck.y = puck.radius; puck.dy *= -0.78; }
+        else if (puck.y > canvas.height - puck.radius) { puck.y = canvas.height - puck.radius; puck.dy *= -0.78; }
 
         if (puck.x < puck.radius) {
             if (puck.y > curGoalTop && puck.y < curGoalBottom) triggerGoal(1);
-            else { puck.x = puck.radius; puck.dx *= WALL_BOUNCE; }
+            else { puck.x = puck.radius; puck.dx *= -0.78; }
         } else if (puck.x > canvas.width - puck.radius) {
             if (puck.y > curGoalTop && puck.y < curGoalBottom) triggerGoal(2);
-            else { puck.x = canvas.width - puck.radius; puck.dx *= WALL_BOUNCE; }
+            else { puck.x = canvas.width - puck.radius; puck.dx *= -0.78; }
         }
     }
 
@@ -344,8 +347,8 @@
             else {
                 let normal = Math.atan2(dy, dx), speed = Math.sqrt(puck.dx**2 + puck.dy**2);
                 let reflection = 2 * normal - Math.atan2(puck.dy, puck.dx) + Math.PI;
-                puck.dx = Math.cos(reflection) * speed * 0.81;
-                puck.dy = Math.sin(reflection) * speed * 0.81;
+                puck.dx = Math.cos(reflection) * speed * 0.78;
+                puck.dy = Math.sin(reflection) * speed * 0.78;
                 puck.x = centerX + Math.cos(normal) * (tableRadius - puck.radius - 2);
                 puck.y = centerY + Math.sin(normal) * (tableRadius - puck.radius - 2);
             }
@@ -372,7 +375,8 @@
             document.getElementById('winner-text').innerText = isMatchOver ? lastWinnerLabel + " WINS MATCH" : lastWinnerLabel + " WINS PHASE";
             
             if(isMatchOver) {
-                document.getElementById('stats-ui').style.display = 'block';
+                const statsUI = document.getElementById('stats-ui');
+                statsUI.style.display = 'block';
                 const r1 = document.getElementById('rank-p1'), r2 = document.getElementById('rank-p2');
                 
                 r1.innerText = matchStats.p1.rank || "C";
@@ -414,6 +418,7 @@
         const isMatchOver = seriesPoints.p1 >= SERIES_TO_WIN || seriesPoints.p2 >= SERIES_TO_WIN;
         
         if (isMatchOver && isHost) {
+            // Finalize ranks for both independently
             matchStats.p1.rank = calculateGrade('p1');
             matchStats.p2.rank = calculateGrade('p2');
         }
@@ -430,7 +435,6 @@
     }
 
     function resetFullMatch() { location.reload(); }
-    function gameLoop() { update(); draw(); requestAnimationFrame(gameLoop); }
 
     function draw() {
         ctx.save();
@@ -452,6 +456,11 @@
             const curY = (currentRound === 3) ? goalY : (canvas.height - goalHeight)/2;
             ctx.fillStyle = '#0ff'; ctx.fillRect(0, curY, 6, goalHeight);
             ctx.fillStyle = '#f0f'; ctx.fillRect(canvas.width-6, curY, 6, goalHeight);
+        }
+
+        if (currentRound === 1) {
+            ctx.fillStyle = 'rgba(0, 255, 0, 0.15)';
+            ctx.fillRect(centerX-75, 0, 150, 15); ctx.fillRect(centerX-75, canvas.height-15, 150, 15);
         }
 
         ctx.setLineDash([15, 15]); ctx.strokeStyle = '#1a1a1a';
@@ -490,6 +499,8 @@
         isPaused = false; if (isHost) syncData(); else conn.send({ type: 'RESUME' });
         updateUI();
     }
+
+    function gameLoop() { update(); draw(); requestAnimationFrame(gameLoop); }
 </script>
 
 </body>
