@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Air Hockey - Pro Gravity Colosseum</title>
+    <title>Air Hockey - Omni Arena</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         body { background: #050505; color: #0ff; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; overflow: hidden; }
@@ -14,9 +14,9 @@
         .series-dots .won { color: #0ff; text-shadow: 0 0 8px #0ff; }
         .series-dots.p2 .won { color: #f0f; text-shadow: 0 0 8px #f0f; }
         
-        .round-display { text-align: center; color: #ccc; background: rgba(255,255,255,0.03); padding: 12px 50px; border-radius: 15px; border: 1px solid #333; min-width: 300px; }
-        #round-label { font-size: 1rem; letter-spacing: 3px; color: #888; text-transform: uppercase; margin-bottom: 4px; }
-        #table-type { display: block; font-size: 2rem; font-weight: 900; color: #fff; text-shadow: 0 0 15px rgba(255,255,255,0.3); letter-spacing: 1px; text-transform: uppercase; }
+        .round-display { text-align: center; color: #ccc; background: rgba(255,255,255,0.03); padding: 12px 50px; border-radius: 15px; border: 1px solid #333; min-width: 320px; }
+        #round-label { font-size: 0.9rem; letter-spacing: 3px; color: #888; text-transform: uppercase; margin-bottom: 4px; }
+        #table-type { display: block; font-size: 1.8rem; font-weight: 900; color: #fff; text-shadow: 0 0 15px rgba(255,255,255,0.3); letter-spacing: 1px; text-transform: uppercase; }
 
         button { background: #0ff; border: none; padding: 8px 18px; cursor: pointer; font-weight: bold; border-radius: 4px; transition: 0.2s; color: #000; text-transform: uppercase; }
         button:hover:not(:disabled) { background: #fff; transform: translateY(-1px); }
@@ -34,8 +34,6 @@
         .stat-val { font-size: 1.4rem; font-weight: bold; color: #fff; }
         .p1-stat { color: #0ff !important; }
         .p2-stat { color: #f0f !important; }
-
-        .rank-box { margin-bottom: 15px; }
         .rank-letter { font-size: 4rem; font-weight: 900; line-height: 1; margin: 5px 0; }
         .rank-s { color: #ffdf00; text-shadow: 0 0 25px rgba(255,223,0,0.8); }
         .rank-a { color: #ff4e00; text-shadow: 0 0 15px rgba(255,78,0,0.5); }
@@ -63,8 +61,8 @@
         </div>
         
         <div class="round-display">
-            <div id="round-label"><b>ROUND <span id="round-num">1</span></b></div>
-            <span id="table-type">VELOCITY SURGE</span>
+            <div id="round-label"><b>PHASE <span id="round-num">1</span></b></div>
+            <span id="table-type">VORTEX PIPES</span>
         </div>
 
         <div style="display: flex; flex-direction: column; align-items: center;">
@@ -78,7 +76,7 @@
 
     <div id="overlay">
         <h1 id="winner-text" style="margin:0; font-size: 2.2rem;">-</h1>
-        <p id="sub-text" style="color: #888; font-size: 1rem; margin-top: 5px;">Preparing arena...</p>
+        <p id="sub-text" style="color: #888; font-size: 1rem; margin-top: 5px;">Syncing Neural Link...</p>
         
         <div id="stats-ui" class="stats-container" style="display:none;">
             <div class="stats-grid">
@@ -118,6 +116,7 @@
 
     const centerX = 500, centerY = 300, tableRadius = 280, cornerRadius = 45, goalHeight = 160;
     const WIN_SCORE = 13, SERIES_TO_WIN = 2;
+    const MAP_NAMES = ["VORTEX PIPES", "GRAVITY WELL", "SHIFTING BORDER"];
     
     let currentRound = 1, lastWinnerLabel = "", shakeIntensity = 0; 
     let scores = { p1: 0, p2: 0 }, seriesPoints = { p1: 0, p2: 0 }, pausesLeft = { p1: 4, p2: 4 };
@@ -148,7 +147,6 @@
             gameLoop();
         });
         conn.on('close', () => handleDisconnection());
-        conn.on('error', () => handleDisconnection());
         conn.on('data', data => {
             if (data.type === 'PAUSE_REQ') handlePauseRequest(data.player);
             else if (data.type === 'RESUME') { isPaused = false; updateUI(); }
@@ -171,12 +169,8 @@
     function handleDisconnection() {
         if (disconnected) return;
         disconnected = true; gameActive = false; isPaused = false; updateUI();
-        const overlay = document.getElementById('overlay');
-        overlay.style.display = 'block';
+        document.getElementById('overlay').style.display = 'block';
         document.getElementById('winner-text').innerText = "CONNECTION LOST";
-        document.getElementById('winner-text').style.color = "#ff0000";
-        document.getElementById('sub-text').innerText = "Opponent fled. Automatic match win.";
-        document.getElementById('resume-btn').style.display = 'none';
         document.getElementById('restart-btn').style.display = 'inline-block';
     }
 
@@ -189,15 +183,13 @@
         };
 
         if (isHost) {
-            // Strict clamping: p1 radius + 2px gap from center line
-            p1.x = Math.max(p1.radius, Math.min(pos.x, centerX - p1.radius - 2));
+            p1.x = Math.max(p1.radius, Math.min(pos.x, centerX - p1.radius - 3));
             p1.y = Math.max(p1.radius, Math.min(pos.y, canvas.height - p1.radius));
             if (currentRound === 2) applyCircleConstraint(p1, "left");
             p1.vx = p1.x - p1.lastX; p1.vy = p1.y - p1.lastY;
             p1.lastX = p1.x; p1.lastY = p1.y;
         } else {
-            // Strict clamping: p2 radius + 2px gap from center line
-            p2.x = Math.max(centerX + p2.radius + 2, Math.min(pos.x, canvas.width - p2.radius));
+            p2.x = Math.max(centerX + p2.radius + 3, Math.min(pos.x, canvas.width - p2.radius));
             p2.y = Math.max(p2.radius, Math.min(pos.y, canvas.height - p2.radius));
             if (currentRound === 2) applyCircleConstraint(p2, "right");
             if (conn && conn.open) conn.send({ x: p2.x, y: p2.y });
@@ -214,7 +206,7 @@
             p.x = centerX + Math.cos(angle) * (tableRadius - p.radius);
             p.y = centerY + Math.sin(angle) * (tableRadius - p.radius);
         }
-        p.x = (side === "left") ? Math.min(p.x, centerX - p.radius - 2) : Math.max(p.x, centerX + p.radius + 2);
+        p.x = (side === "left") ? Math.min(p.x, centerX - p.radius - 3) : Math.max(p.x, centerX + p.radius + 3);
     }
 
     function update() {
@@ -225,19 +217,26 @@
         if (respawnTimer > 0) {
             respawnTimer--;
             if (respawnTimer === 0) {
-                // Natural slow start
                 puck.dx = (Math.random() > 0.5 ? 2.5 : -2.5);
-                puck.dy = (Math.random() - 0.5) * 3;
+                puck.dy = (Math.random() - 0.5) * 4;
                 lastHitter = 0;
             }
             syncData(); return;
         }
 
+        // Gravity Well Logic (Map 2 Only)
+        if (currentRound === 2) {
+            let dx = centerX - puck.x, dy = centerY - puck.y;
+            let dist = Math.sqrt(dx*dx + dy*dy);
+            if (dist > 5) {
+                let gravityStrength = 0.15;
+                puck.dx += (dx / dist) * gravityStrength;
+                puck.dy += (dy / dist) * gravityStrength;
+            }
+        }
+
         puck.x += puck.dx; puck.y += puck.dy;
         puck.dx *= puck.friction; puck.dy *= puck.friction;
-
-        if (Math.abs(puck.dx) < 0.1) puck.dx = 0;
-        if (Math.abs(puck.dy) < 0.1) puck.dy = 0;
 
         if (currentRound === 2) updateCirclePhysics();
         else updateRectPhysics();
@@ -262,10 +261,8 @@
             let velAlongNormal = relativeVX * nx + relativeVY * ny;
 
             if (velAlongNormal < 0) {
-                let restitution = 1.35; 
-                let j = -(1 + restitution) * velAlongNormal;
+                let j = -(1 + 1.35) * velAlongNormal;
                 pk.dx += j * nx; pk.dy += j * ny;
-
                 let speed = Math.sqrt(pk.dx**2 + pk.dy**2);
                 if (speed > pk.maxSpeed) {
                     pk.dx = (pk.dx / speed) * pk.maxSpeed;
@@ -284,15 +281,9 @@
     }
 
     function triggerGoal(scoredOnPlayer) {
-        if (scoredOnPlayer === 1) {
-            scores.p2++;
-            if (lastHitter === 1) matchStats.p1.ownGoals++;
-            else if (lastHitter === 2) matchStats.p2.goals++;
-        } else {
-            scores.p1++;
-            if (lastHitter === 2) matchStats.p2.ownGoals++;
-            else if (lastHitter === 1) matchStats.p1.goals++;
-        }
+        if (scoredOnPlayer === 1) scores.p2++; else scores.p1++;
+        if (lastHitter === scoredOnPlayer) matchStats['p'+scoredOnPlayer].ownGoals++;
+        else if (lastHitter !== 0) matchStats['p'+(3-scoredOnPlayer)].goals++;
         shakeIntensity = 15; resetPuck();
     }
 
@@ -300,15 +291,13 @@
         const curGoalTop = (currentRound === 3) ? goalY : (canvas.height - goalHeight)/2;
         const curGoalBottom = curGoalTop + goalHeight;
         
-        // Restore Round 1 Acceleration Factor
+        // Vortex Pipes (Map 1)
         if (currentRound === 1) {
             const pxStart = centerX - 75, pxEnd = centerX + 75;
             if (puck.y < puck.radius && puck.x > pxStart && puck.x < pxEnd) {
-                puck.dy = 14; puck.y = puck.radius + 5; // Slingshot down
-                shakeIntensity = 5;
+                puck.dy = 14; puck.y = puck.radius + 5; shakeIntensity = 6;
             } else if (puck.y > canvas.height - puck.radius && puck.x > pxStart && puck.x < pxEnd) {
-                puck.dy = -14; puck.y = canvas.height - puck.radius - 5; // Slingshot up
-                shakeIntensity = 5;
+                puck.dy = -14; puck.y = canvas.height - puck.radius - 5; shakeIntensity = 6;
             }
         }
 
@@ -346,59 +335,28 @@
         }
     }
 
-    function calculateGrade(pKey) {
-        const s = matchStats[pKey];
-        const isWinner = seriesPoints[pKey] >= SERIES_TO_WIN;
-        const accuracy = s.totalHits > 0 ? (s.goals / s.totalHits) : 0;
-        let score = (s.goals * 30) + (s.saves * 15) - (s.ownGoals * 50) + (accuracy * 100);
-        if (isWinner) score += 100;
-        if (score >= 600) return "S";
-        if (score >= 450) return "A";
-        if (score >= 300) return "B";
-        if (score >= 150) return "C";
-        return "D";
-    }
-
     function updateUI() {
         document.getElementById('s1').innerText = scores.p1;
         document.getElementById('s2').innerText = scores.p2;
         document.getElementById('round-num').innerText = currentRound;
+        document.getElementById('table-type').innerText = MAP_NAMES[currentRound-1];
         document.getElementById('p1-pauses').innerText = pausesLeft.p1;
         document.getElementById('p2-pauses').innerText = pausesLeft.p2;
         
         const isMatchOver = seriesPoints.p1 >= SERIES_TO_WIN || seriesPoints.p2 >= SERIES_TO_WIN;
-        const playerKey = isHost ? 'p1' : 'p2';
-        document.getElementById('pause-btn').disabled = pausesLeft[playerKey] <= 0 || isPaused || disconnected;
-        
-        const overlay = document.getElementById('overlay'), statsUI = document.getElementById('stats-ui');
+        const overlay = document.getElementById('overlay');
 
-        if (disconnected) { overlay.style.display = 'block'; }
-        else if (isPaused) {
+        if (isPaused) {
             overlay.style.display = 'block';
-            document.getElementById('winner-text').innerText = "GAME PAUSED";
-            document.getElementById('sub-text').innerText = "Strategic timeout...";
+            document.getElementById('winner-text').innerText = "PAUSED";
             document.getElementById('resume-btn').style.display = 'inline-block';
-            statsUI.style.display = 'none';
         } else if (!gameActive) {
             overlay.style.display = 'block';
-            document.getElementById('winner-text').innerText = isMatchOver ? lastWinnerLabel + " VICTORIOUS" : lastWinnerLabel + " ROUND WIN";
-            document.getElementById('sub-text').innerText = isMatchOver ? "Series Concluded" : "Preparing next colosseum...";
-            document.getElementById('resume-btn').style.display = 'none';
-            
-            if (isMatchOver) {
-                statsUI.style.display = 'block';
-                const p1G = matchStats.p1.rank, p2G = matchStats.p2.rank;
-                const r1 = document.getElementById('rank-p1'), r2 = document.getElementById('rank-p2');
-                r1.innerText = p1G; r2.innerText = p2G;
-                r1.className = `rank-letter rank-${p1G.toLowerCase()}`;
-                r2.className = `rank-letter rank-${p2G.toLowerCase()}`;
-
-                document.getElementById('stat-p1-goals').innerText = matchStats.p1.goals;
-                document.getElementById('stat-p2-goals').innerText = matchStats.p2.goals;
-                document.getElementById('stat-p1-saves').innerText = matchStats.p1.saves;
-                document.getElementById('stat-p2-saves').innerText = matchStats.p2.saves;
-                document.getElementById('stat-p1-own').innerText = matchStats.p1.ownGoals;
-                document.getElementById('stat-p2-own').innerText = matchStats.p2.ownGoals;
+            document.getElementById('winner-text').innerText = isMatchOver ? lastWinnerLabel + " WINS MATCH" : lastWinnerLabel + " WINS PHASE";
+            if(isMatchOver) {
+                document.getElementById('stats-ui').style.display = 'block';
+                document.getElementById('rank-p1').innerText = matchStats.p1.rank;
+                document.getElementById('rank-p2').innerText = matchStats.p2.rank;
                 if(isHost) document.getElementById('restart-btn').style.display = 'inline-block';
             }
         } else { overlay.style.display = 'none'; }
@@ -422,26 +380,15 @@
     function startNewRound(winner) {
         gameActive = false; lastWinnerLabel = winner; seriesPoints[winner === "PLAYER 1" ? 'p1' : 'p2']++;
         const isMatchOver = seriesPoints.p1 >= SERIES_TO_WIN || seriesPoints.p2 >= SERIES_TO_WIN;
-        if (isMatchOver && isHost) {
-            matchStats.p1.rank = calculateGrade('p1');
-            matchStats.p2.rank = calculateGrade('p2');
-        }
-        updateUI(); syncData(); 
+        syncData(); updateUI(); 
         if (!isMatchOver) {
             setTimeout(() => {
-                if (disconnected) return;
                 scores = {p1:0, p2:0}; currentRound++; gameActive = true; resetPuck(); updateUI();
             }, 3000);
         }
     }
 
-    function resetFullMatch() {
-        seriesPoints = { p1: 0, p2: 0 }; scores = { p1: 0, p2: 0 };
-        matchStats = { p1: { goals: 0, saves: 0, ownGoals: 0, totalHits: 0, rank: "C" }, p2: { goals: 0, saves: 0, ownGoals: 0, totalHits: 0, rank: "C" } };
-        currentRound = 1; gameActive = true; lastWinnerLabel = ""; pausesLeft = { p1: 4, p2: 4 };
-        disconnected = false; document.getElementById('restart-btn').style.display = 'none';
-        resetPuck(); updateUI();
-    }
+    function resetFullMatch() { location.reload(); }
 
     function draw() {
         ctx.save();
@@ -451,8 +398,9 @@
         if (currentRound === 2) {
             ctx.save(); ctx.beginPath(); ctx.arc(centerX, centerY, tableRadius, 0, Math.PI * 2); ctx.clip();
             ctx.fillStyle = '#000'; ctx.fillRect(0,0, canvas.width, canvas.height);
+            // Gravity Well Visual
             let grad = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, tableRadius);
-            grad.addColorStop(0, 'rgba(0, 255, 255, 0.05)'); grad.addColorStop(1, 'transparent');
+            grad.addColorStop(0, 'rgba(0, 255, 255, 0.1)'); grad.addColorStop(1, 'transparent');
             ctx.fillStyle = grad; ctx.fill(); ctx.restore();
             ctx.beginPath(); ctx.arc(centerX, centerY, tableRadius, 0, Math.PI * 2);
             ctx.strokeStyle = '#222'; ctx.lineWidth = 6; ctx.stroke();
@@ -466,11 +414,11 @@
         }
 
         if (currentRound === 1) {
-            ctx.shadowBlur = 10; ctx.shadowColor = '#0f0'; ctx.fillStyle = '#0f0';
-            ctx.fillRect(centerX-75, -5, 150, 10); ctx.fillRect(centerX-75, canvas.height - 5, 150, 10);
+            ctx.fillStyle = 'rgba(0, 255, 0, 0.15)';
+            ctx.fillRect(centerX-75, 0, 150, 15); ctx.fillRect(centerX-75, canvas.height-15, 150, 15);
         }
 
-        ctx.shadowBlur = 0; ctx.setLineDash([15, 15]); ctx.strokeStyle = '#1a1a1a';
+        ctx.setLineDash([15, 15]); ctx.strokeStyle = '#1a1a1a';
         ctx.beginPath(); ctx.moveTo(centerX, 0); ctx.lineTo(centerX, canvas.height); ctx.stroke();
         ctx.setLineDash([]); ctx.shadowBlur = 10; ctx.shadowColor = '#fff'; ctx.fillStyle = '#fff';
         ctx.beginPath(); ctx.arc(puck.x, puck.y, puck.radius, 0, Math.PI*2); ctx.fill();
@@ -479,8 +427,9 @@
 
         if (respawnTimer > 0) {
             ctx.textAlign = "center"; ctx.shadowBlur = 0;
-            if (respawnTimer > 110) { ctx.fillStyle = "#fff"; ctx.font = "bold 70px 'Segoe UI'"; ctx.fillText("GOAL!", centerX, centerY - 20); }
-            else { ctx.fillStyle = "#0ff"; ctx.font = "bold 90px 'Segoe UI'"; ctx.fillText(Math.ceil(respawnTimer / 60), centerX, centerY + 30); }
+            ctx.fillStyle = respawnTimer > 110 ? "#fff" : "#0ff";
+            ctx.font = "bold 80px 'Segoe UI'";
+            ctx.fillText(respawnTimer > 110 ? "GOAL!" : Math.ceil(respawnTimer / 60), centerX, centerY + 30);
         }
         ctx.restore(); 
     }
@@ -492,25 +441,18 @@
     }
 
     function requestPause() {
-        if (!gameActive || isPaused || disconnected) return;
         const pKey = isHost ? 'p1' : 'p2';
-        if (pausesLeft[pKey] > 0) {
-            if (isHost) handlePauseRequest('p1');
-            else conn.send({ type: 'PAUSE_REQ', player: 'p2' });
+        if (pausesLeft[pKey] > 0 && !isPaused) {
+            if (isHost) handlePauseRequest('p1'); else conn.send({ type: 'PAUSE_REQ', player: 'p2' });
         }
     }
 
     function handlePauseRequest(player) {
-        if (pausesLeft[player] > 0) {
-            isPaused = true; pausesLeft[player]--;
-            syncData(); updateUI();
-        }
+        isPaused = true; pausesLeft[player]--; syncData(); updateUI();
     }
 
     function resumeGame() {
-        if (disconnected) return;
-        isPaused = false;
-        if (isHost) syncData(); else if (conn) conn.send({ type: 'RESUME' });
+        isPaused = false; if (isHost) syncData(); else conn.send({ type: 'RESUME' });
         updateUI();
     }
 
