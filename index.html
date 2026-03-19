@@ -65,7 +65,7 @@
         </div>
         
         <div class="round-display">
-            <div id="round-label"><b>RD <span id="round-num">1</span></b></div>
+            <div id="round-label"><b>ROUND <span id="round-num">1</span></b></div>
             <span id="table-type">VELOCITY SURGE</span>
         </div>
 
@@ -138,6 +138,13 @@
     const p2 = { x: 850, y: 300, vx: 0, vy: 0, radius: 32, color: '#f0f' };
     let goalY = (canvas.height - goalHeight) / 2, goalDir = 1;
 
+    // Touch support
+    let isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    if (isTouchDevice) {
+        canvas.style.cursor = 'auto';
+        document.body.style.touchAction = 'none';
+    }
+
     peer.on('open', id => document.getElementById('my-id').innerText = id);
     peer.on('connection', c => { conn = c; isHost = true; setupConnection(); });
 
@@ -207,22 +214,43 @@
         updateUI();
     }
 
-    canvas.addEventListener('mousemove', e => {
-        if (!gameActive || isPaused || disconnected) return;
+    // Touch event handlers
+    function getTouchPos(e) {
         const rect = canvas.getBoundingClientRect();
-        const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+        const touch = e.touches[0] || e.changedTouches[0];
+        return {
+            x: touch.clientX - rect.left,
+            y: touch.clientY - rect.top
+        };
+    }
+
+    function handleInput(e) {
+        if (!gameActive || isPaused || disconnected) return;
+        const pos = isTouchDevice ? getTouchPos(e) : {
+            x: e.clientX - canvas.getBoundingClientRect().left,
+            y: e.clientY - canvas.getBoundingClientRect().top
+        };
+
         if (isHost) {
-            p1.vx = mx - p1.x; p1.vy = my - p1.y;
-            p1.x = Math.min(mx, canvas.width/2 - p1.radius);
-            p1.y = Math.max(p1.radius, Math.min(canvas.height - p1.radius, my));
+            p1.vx = pos.x - p1.x; p1.vy = pos.y - p1.y;
+            p1.x = Math.min(pos.x, canvas.width/2 - p1.radius);
+            p1.y = Math.max(p1.radius, Math.min(canvas.height - p1.radius, pos.y));
             if (currentRound === 2) applyCircleConstraint(p1, "left");
         } else {
-            p2.x = Math.max(mx, canvas.width/2 + p2.radius);
-            p2.y = Math.max(p2.radius, Math.min(canvas.height - p2.radius, my));
+            p2.x = Math.max(pos.x, canvas.width/2 + p2.radius);
+            p2.y = Math.max(p2.radius, Math.min(canvas.height - p2.radius, pos.y));
             if (currentRound === 2) applyCircleConstraint(p2, "right");
             if (conn && conn.open) conn.send({ x: p2.x, y: p2.y });
         }
-    });
+    }
+
+    // Mouse events
+    canvas.addEventListener('mousemove', handleInput);
+    
+    // Touch events
+    canvas.addEventListener('touchstart', handleInput, { passive: false });
+    canvas.addEventListener('touchmove', handleInput, { passive: false });
+    canvas.addEventListener('touchend', handleInput, { passive: false });
 
     function applyCircleConstraint(p, side) {
         let dx = p.x - centerX, dy = p.y - centerY, dist = Math.sqrt(dx*dx + dy*dy);
@@ -354,14 +382,10 @@
         const s = matchStats[pKey];
         const isWinner = seriesPoints[pKey] >= SERIES_TO_WIN;
         
-        // Advanced Scoring Formula
-        // Base: 25 points per goal, 10 per save
-        // Penalty: 40 per own goal
-        // Bonus: Efficiency (Goals per hit ratio)
         const accuracy = s.totalHits > 0 ? (s.goals / s.totalHits) : 0;
         let score = (s.goals * 25) + (s.saves * 12) - (s.ownGoals * 45) + (accuracy * 100);
         
-        if (isWinner) score += 50; // Victory bonus
+        if (isWinner) score += 50;
         
         if (score >= 600) return "S";
         if (score >= 450) return "A";
@@ -499,5 +523,6 @@
 
     function gameLoop() { update(); draw(); requestAnimationFrame(gameLoop); }
 </script>
+
 </body>
 </html>
