@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Air Hockey - Omni Arena (Multi-Diff AI)</title>
+    <title>Air Hockey - Omni Arena (Balanced AI)</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         body { background: #050505; color: #0ff; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; overflow: hidden; }
@@ -23,11 +23,7 @@
         button:hover:not(:disabled) { background: #fff; transform: translateY(-1px); }
         button:disabled { background: #222; color: #444; cursor: not-allowed; }
         
-        #pause-btn { background: #ffaa00; }
         select { background: #111; color: #0ff; border: 1px solid #444; padding: 7px; border-radius: 4px; outline: none; cursor: pointer; font-weight: bold; }
-        .pause-count { font-size: 0.8rem; color: #888; margin-left: 5px; }
-        input { background: #111; border: 1px solid #444; color: white; padding: 8px; border-radius: 4px; outline: none; width: 180px; }
-        
         #overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.96); padding: 40px; border-radius: 20px; text-align: center; border: 2px solid #0ff; display: none; z-index: 100; min-width: 500px; }
         .stats-container { margin-top: 20px; width: 100%; border-top: 1px solid #333; padding-top: 20px; }
         .stats-grid { display: grid; grid-template-columns: 1fr 1.5fr 1fr; gap: 10px; align-items: center; }
@@ -48,15 +44,15 @@
 
     <div id="menu">
         <div>ID: <strong id="my-id" style="color:white">...</strong></div>
-        <input type="text" id="remote-id" placeholder="Friend's ID">
+        <input type="text" id="remote-id" style="background:#111;border:1px solid #444;color:white;padding:8px;border-radius:4px;" placeholder="Friend's ID">
         <button onclick="connectToFriend()">Connect</button>
         <div style="border-left: 1px solid #333; height: 20px; margin: 0 5px;"></div>
         <select id="difficulty" onchange="updateDifficulty()">
-            <option value="stalker">EASY: STALKER</option>
-            <option value="pro" selected>HARD: PRO AI</option>
+            <option value="stalker">EASY: COMPETITIVE STALKER</option>
+            <option value="pro" selected>HARD: BALANCED PRO</option>
             <option value="god">INSANE: GOD MODE</option>
         </select>
-        <button id="pause-btn" onclick="requestPause()">Pause</button>
+        <button id="pause-btn" style="background:#ffaa00;" onclick="requestPause()">Pause</button>
     </div>
 
     <div class="hud">
@@ -141,13 +137,9 @@
     window.onload = () => { resetPuck(); gameLoop(); };
 
     peer.on('open', id => document.getElementById('my-id').innerText = id);
-    peer.on('connection', c => { 
-        conn = c; isHost = true; isOffline = false; setupConnection(); 
-    });
+    peer.on('connection', c => { conn = c; isHost = true; isOffline = false; setupConnection(); });
 
-    function updateDifficulty() {
-        aiDifficulty = document.getElementById('difficulty').value;
-    }
+    function updateDifficulty() { aiDifficulty = document.getElementById('difficulty').value; }
 
     function connectToFriend() {
         const id = document.getElementById('remote-id').value;
@@ -159,7 +151,7 @@
         conn.on('open', () => {
             document.getElementById('status').innerText = "LINK ESTABLISHED";
             document.getElementById('status').style.color = "#0ff";
-            document.getElementById('difficulty').disabled = true; // No AI in multiplayer
+            document.getElementById('difficulty').disabled = true;
             disconnected = false; if(isHost) resetPuck();
         });
         conn.on('close', () => handleDisconnection());
@@ -225,8 +217,7 @@
     function calculateGrade(pKey) {
         const s = matchStats[pKey];
         const isWinner = seriesPoints[pKey] >= SERIES_TO_WIN;
-        const efficiencyBase = s.totalHits > 0 ? (s.goals / s.totalHits) * 600 : 0;
-        const totalScore = Math.max(0, efficiencyBase + (s.saves * 35) + (s.goals * 45) + (isWinner ? 200 : 0) - (s.ownGoals * 80));
+        const totalScore = Math.max(0, (s.totalHits > 0 ? (s.goals / s.totalHits) * 600 : 0) + (s.saves * 35) + (s.goals * 45) + (isWinner ? 200 : 0) - (s.ownGoals * 80));
         if (totalScore >= 950) return "S";
         if (totalScore >= 700) return "A";
         if (totalScore >= 450) return "B";
@@ -238,23 +229,26 @@
         if (shakeIntensity > 0) shakeIntensity *= 0.92;
         if (isPaused || disconnected) return;
 
-        // --- UNIVERSAL OFFLINE AI LOGIC ---
+        // --- BALANCED AI LOGIC ---
         if (isOffline && gameActive && respawnTimer === 0) {
             let targetX = 850;
             let targetY = puck.y;
             let currentAiSpeed = 0.22;
 
             if (aiDifficulty === "stalker") {
-                targetX = 900; // Stay back
-                currentAiSpeed = 0.12;
+                // Competitive Stalker: Moves faster and actually attacks if puck is close
+                currentAiSpeed = 0.18;
+                if (puck.x > 750) { targetX = puck.x; targetY = puck.y; }
+                else { targetX = 920; targetY = puck.y; }
             } 
             else if (aiDifficulty === "pro" || aiDifficulty === "god") {
-                const speedMult = aiDifficulty === "god" ? 0.8 : 0.25;
-                const strikeX = centerX + (aiDifficulty === "god" ? -100 : 50);
+                const isGod = aiDifficulty === "god";
+                const speedMult = isGod ? 0.8 : 0.22; // Slightly slower pro
+                const strikeX = isGod ? centerX - 100 : centerX + 100; // Waits longer to strike in Pro
                 
                 if (puck.x > strikeX) {
                     targetX = puck.x;
-                    targetY = puck.y + (puck.dy * (aiDifficulty === "god" ? 1 : 0.5));
+                    targetY = puck.y + (puck.dy * (isGod ? 1 : 0.4));
                     currentAiSpeed = speedMult;
                 }
             }
@@ -272,9 +266,7 @@
         if (!isHost && !isOffline) return;
         if (respawnTimer > 0) {
             respawnTimer--;
-            if (respawnTimer === 0) {
-                puck.dx = (Math.random() > 0.5 ? 3 : -3); puck.dy = (Math.random() - 0.5) * 5; lastHitter = 0;
-            }
+            if (respawnTimer === 0) { puck.dx = (Math.random() > 0.5 ? 3 : -3); puck.dy = (Math.random() - 0.5) * 5; lastHitter = 0; }
             if(!isOffline) syncData(); return;
         }
 
@@ -340,11 +332,10 @@
     function updateCirclePhysics() {
         let dx = puck.x - centerX, dy = puck.y - centerY, dist = Math.sqrt(dx*dx + dy*dy);
         if (dist > tableRadius - puck.radius) {
-            let angle = Math.atan2(dy, dx), deg = angle * (180 / Math.PI);
+            let normal = Math.atan2(dy, dx), speed = Math.sqrt(puck.dx**2 + puck.dy**2), deg = normal * (180 / Math.PI);
             if (Math.abs(deg) < 22) triggerGoal(2);
             else if (Math.abs(deg) > 158) triggerGoal(1);
             else {
-                let normal = Math.atan2(dy, dx), speed = Math.sqrt(puck.dx**2 + puck.dy**2);
                 let reflection = 2 * normal - Math.atan2(puck.dy, puck.dx) + Math.PI;
                 puck.dx = Math.cos(reflection) * speed * 0.78; puck.dy = Math.sin(reflection) * speed * 0.78;
                 puck.x = centerX + Math.cos(normal) * (tableRadius - puck.radius - 2); puck.y = centerY + Math.sin(normal) * (tableRadius - puck.radius - 2);
@@ -370,7 +361,7 @@
                 document.getElementById('stat-p1-own').innerText = matchStats.p1.ownGoals; document.getElementById('stat-p2-own').innerText = matchStats.p2.ownGoals;
                 if(isHost || isOffline) document.getElementById('restart-btn').style.display = 'inline-block';
             }
-        } else { overlay.style.display = 'none'; }
+        } else overlay.style.display = 'none';
         const renderDots = (id, pts) => {
             let dots = ""; for(let i=0; i<SERIES_TO_WIN; i++) dots += `<span class="${i < pts ? 'won' : ''}">●</span> `;
             document.getElementById(id).innerHTML = dots;
@@ -429,14 +420,9 @@
         ctx.shadowBlur = 0; ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 2; ctx.stroke();
     }
 
-    function requestPause() {
-        if (!isPaused) { if (isHost || isOffline) handlePauseRequest('p1'); else conn.send({ type: 'PAUSE_REQ', player: 'p2' }); }
-    }
-
+    function requestPause() { if (!isPaused) { if (isHost || isOffline) handlePauseRequest('p1'); else conn.send({ type: 'PAUSE_REQ', player: 'p2' }); } }
     function handlePauseRequest(player) { isPaused = true; updateUI(); }
-
     function resumeGame() { isPaused = false; if (isHost && !isOffline) syncData(); else if (!isOffline) conn.send({ type: 'RESUME' }); updateUI(); }
-
     function gameLoop() { update(); draw(); requestAnimationFrame(gameLoop); }
 </script>
 
