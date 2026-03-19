@@ -6,137 +6,87 @@
     <title>Air Hockey - Pro Gravity Colosseum</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
-        :root { --neon-blue: #0ff; --neon-pink: #f0f; }
-        
         body { 
-            background: #050505; 
-            color: var(--neon-blue); 
-            font-family: 'Segoe UI', system-ui, sans-serif; 
-            display: flex; 
-            flex-direction: column; 
-            align-items: center; 
-            justify-content: space-between; 
-            height: 100dvh; /* Dynamic viewport height for mobile */
-            margin: 0; 
-            padding: 5px;
-            box-sizing: border-box;
-            overflow: hidden;
+            background: #050505; color: #0ff; font-family: 'Segoe UI', sans-serif; 
+            display: flex; flex-direction: column; align-items: center; justify-content: center; 
+            height: 100vh; margin: 0; overflow: hidden; touch-action: none;
         }
-
         #menu { 
-            width: 100%;
-            max-width: 800px;
-            background: #111; 
-            padding: 8px; 
-            border-radius: 10px; 
-            border: 1px solid #333; 
-            display: flex; 
-            flex-wrap: wrap; 
-            gap: 10px; 
-            align-items: center; 
-            justify-content: center;
-            font-size: 0.85rem;
+            margin-bottom: 10px; background: #1a1a1a; padding: 12px; border-radius: 12px; 
+            border: 1px solid #333; display: flex; gap: 10px; align-items: center; z-index: 10; 
+            flex-wrap: wrap; justify-content: center; width: 95%; max-width: 900px;
         }
-
-        .hud { 
-            display: flex; 
-            justify-content: space-between; 
-            width: 100%; 
-            max-width: 900px;
-            align-items: center; 
-            margin: 5px 0;
-        }
-
         canvas { 
-            width: 100%; 
-            max-width: 900px;
-            max-height: 65vh; /* Prevents bottom cutoff */
-            aspect-ratio: 1000 / 600; 
-            border: 2px solid #222; 
-            background: #000; 
-            touch-action: none; 
-            border-radius: 8px;
+            border: 2px solid #222; background: #000; cursor: none; 
+            box-shadow: 0 0 30px rgba(0,255,255,0.05); touch-action: none;
+            max-width: 98vw; max-height: 70vh; width: auto; height: auto;
         }
-
-        .score { font-size: 2.2rem; font-weight: bold; text-shadow: 0 0 10px var(--neon-blue); }
-        .series-dots { font-size: 1rem; color: #333; }
-        .series-dots .won { color: var(--neon-blue); text-shadow: 0 0 8px var(--neon-blue); }
-        .series-dots.p2 .won { color: var(--neon-pink); text-shadow: 0 0 8px var(--neon-pink); }
+        .hud { display: flex; justify-content: space-between; width: 95%; max-width: 1000px; align-items: center; margin-bottom: 10px; }
+        .score { font-size: clamp(1.5rem, 5vw, 2.8rem); font-weight: bold; text-shadow: 0 0 10px #0ff; min-width: 50px; text-align: center; }
+        .series-dots { font-size: 1.2rem; letter-spacing: 5px; color: #333; }
+        .series-dots .won { color: #0ff; text-shadow: 0 0 8px #0ff; }
+        .series-dots.p2 .won { color: #f0f; text-shadow: 0 0 8px #f0f; }
         
-        .round-display { 
-            text-align: center; 
-            background: rgba(255,255,255,0.05); 
-            padding: 5px 15px; 
-            border-radius: 10px; 
-            border: 1px solid #333; 
-        }
+        .round-display { text-align: center; color: #ccc; background: rgba(255,255,255,0.03); padding: 5px 20px; border-radius: 15px; border: 1px solid #333; min-width: 150px; }
+        #round-label { font-size: 0.7rem; letter-spacing: 2px; color: #888; text-transform: uppercase; }
+        #table-type { display: block; font-size: 1.2rem; font-weight: 900; color: #fff; text-transform: uppercase; }
 
-        #table-type { display: block; font-size: 1rem; font-weight: 900; color: #fff; text-transform: uppercase; }
+        button { background: #0ff; border: none; padding: 8px 15px; cursor: pointer; font-weight: bold; border-radius: 4px; transition: 0.2s; color: #000; text-transform: uppercase; font-size: 0.8rem; }
+        button:hover:not(:disabled) { background: #fff; transform: translateY(-1px); }
+        #pause-btn { background: #ffaa00; }
+        #fullscreen-btn { background: #555; color: white; }
 
-        button { background: var(--neon-blue); border: none; padding: 6px 12px; cursor: pointer; font-weight: bold; border-radius: 4px; color: #000; text-transform: uppercase; font-size: 0.75rem; }
-        input { background: #111; border: 1px solid #444; color: white; padding: 6px; border-radius: 4px; width: 110px; }
+        input { background: #111; border: 1px solid #444; color: white; padding: 8px; border-radius: 4px; outline: none; width: 140px; }
         
-        #overlay { 
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
-            background: rgba(0,0,0,0.95); padding: 20px; border-radius: 15px; 
-            text-align: center; border: 2px solid var(--neon-blue); 
-            display: none; z-index: 100; width: 85%; max-width: 400px; 
-        }
-
-        /* Mobile specific font scaling */
-        @media (max-width: 480px) {
-            .score { font-size: 1.6rem; }
-            #table-type { font-size: 0.8rem; }
-            #menu { gap: 5px; }
-            input { width: 80px; }
-        }
-
-        .rank-letter { font-size: 2.5rem; font-weight: 900; }
-        .stat-label { color: #888; font-size: 0.6rem; text-transform: uppercase; }
+        #overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.96); padding: 30px; border-radius: 20px; text-align: center; border: 2px solid #0ff; display: none; z-index: 100; width: 80%; max-width: 500px; }
+        .stats-grid { display: grid; grid-template-columns: 1fr 1.5fr 1fr; gap: 10px; align-items: center; margin-top: 15px; }
+        .rank-letter { font-size: 3rem; font-weight: 900; }
+        .rank-s { color: #ffdf00; text-shadow: 0 0 20px #ffdf00; }
     </style>
 </head>
 <body>
 
     <div id="menu">
-        <div>ID: <strong id="my-id" style="color:white">...</strong></div>
+        <div style="font-size: 0.8rem;">ID: <strong id="my-id" style="color:white">...</strong></div>
         <input type="text" id="remote-id" placeholder="Friend's ID">
         <button onclick="connectToFriend()">Connect</button>
-        <button id="pause-btn" style="background:#fa0" onclick="requestPause()">Pause</button>
-        <div style="font-size: 0.7rem; color: #888;">P: <span id="p1-pauses">4</span>|<span id="p2-pauses">4</span></div>
+        <button id="fullscreen-btn" onclick="toggleFullScreen()">⛶ Fullscreen</button>
+        <button id="pause-btn" onclick="requestPause()">Pause</button>
+        <div style="font-size: 0.7rem; color: #888;">P1: <span id="p1-pauses">4</span> | P2: <span id="p2-pauses">4</span></div>
     </div>
 
     <div class="hud">
-        <div style="text-align: center;">
+        <div>
             <div class="score" id="s1">0</div>
             <div id="series-p1" class="series-dots">● ●</div>
         </div>
-        
         <div class="round-display">
-            <div style="font-size: 0.6rem; color: #888;">ROUND <span id="round-num">1</span></div>
+            <div id="round-label">ROUND <span id="round-num">1</span></div>
             <span id="table-type">VELOCITY SURGE</span>
         </div>
-
-        <div style="text-align: center;">
-            <div class="score" id="s2" style="color:var(--neon-pink); text-shadow: 0 0 10px var(--neon-pink);">0</div>
+        <div>
+            <div class="score" id="s2" style="color:#f0f; text-shadow: 0 0 10px #f0f;">0</div>
             <div id="series-p2" class="series-dots p2">● ●</div>
         </div>
     </div>
 
     <canvas id="gameCanvas" width="1000" height="600"></canvas>
-    
-    <div id="status" style="color: #444; margin-bottom: 10px; font-size: 0.75rem;">Waiting for link...</div>
+    <div id="status" style="color:#555; font-size: 0.8rem; margin-top: 5px;">Waiting for link...</div>
 
     <div id="overlay">
-        <h1 id="winner-text" style="margin:0; font-size: 1.5rem;">-</h1>
-        <div id="stats-ui" style="display:none; margin-top:15px; border-top:1px solid #333; padding-top:10px;">
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
-                <div><div class="stat-label">P1 Rank</div><div class="rank-letter" id="rank-p1">-</div></div>
-                <div><div class="stat-label">P2 Rank</div><div class="rank-letter" id="rank-p2">-</div></div>
+        <h1 id="winner-text" style="margin:0; font-size: 1.8rem;">-</h1>
+        <p id="sub-text" style="color: #888; font-size: 0.9rem;">Arena Initializing...</p>
+        <div id="stats-ui" style="display:none;">
+            <div class="stats-grid">
+                <div><div style="color:#888; font-size:0.7rem">RANK</div><div class="rank-letter" id="rank-p1">-</div></div>
+                <div></div>
+                <div><div style="color:#888; font-size:0.7rem">RANK</div><div class="rank-letter" id="rank-p2">-</div></div>
+                <div id="stat-p1-goals" style="color:#0ff; font-weight:bold">0</div><div style="font-size:0.7rem; color:#888">GOALS</div><div id="stat-p2-goals" style="color:#f0f; font-weight:bold">0</div>
             </div>
         </div>
         <div style="margin-top:20px; display: flex; gap:10px; justify-content: center;">
             <button id="resume-btn" style="display:none; background:#0f0;" onclick="resumeGame()">Resume</button>
-            <button id="restart-btn" style="display:none;" onclick="location.reload()">New Match</button>
+            <button id="restart-btn" style="display:none;" onclick="resetFullMatch()">New Series</button>
         </div>
     </div>
 
@@ -144,57 +94,68 @@
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
     const peer = new Peer(); 
-    let conn;
-    let isHost = false, gameActive = false, isPaused = false, disconnected = false;
+    let conn, isHost = false, gameActive = true, isPaused = false, disconnected = false;
+    let scale = 1;
 
-    const centerX = 500, centerY = 300, tableRadius = 280, goalHeight = 160;
+    // Game Constants & State
+    const centerX = 500, centerY = 300, tableRadius = 280, cornerRadius = 45, goalHeight = 160;
     const WIN_SCORE = 13, SERIES_TO_WIN = 2;
-    
     let currentRound = 1, lastWinnerLabel = "", shakeIntensity = 0; 
     let scores = { p1: 0, p2: 0 }, seriesPoints = { p1: 0, p2: 0 }, pausesLeft = { p1: 4, p2: 4 };
-    let respawnTimer = 0, lastHitter = 0;
-
-    let matchStats = {
-        p1: { goals: 0, saves: 0, rank: "C" },
-        p2: { goals: 0, saves: 0, rank: "C" }
-    };
+    let respawnTimer = 0, lastHitter = 0, goalY = 220, goalDir = 1;
+    let matchStats = { p1: { goals: 0, saves: 0, ownGoals: 0, totalHits: 0, rank: "C" }, p2: { goals: 0, saves: 0, ownGoals: 0, totalHits: 0, rank: "C" } };
 
     const puck = { x: 500, y: 300, dx: 0, dy: 0, radius: 15, friction: 0.993 };
     const p1 = { x: 150, y: 300, vx: 0, vy: 0, radius: 32, color: '#0ff' };
     const p2 = { x: 850, y: 300, vx: 0, vy: 0, radius: 32, color: '#f0f' };
-    let goalY = (canvas.height - goalHeight) / 2, goalDir = 1;
 
-    function getScaledInput(e) {
+    // Responsive Logic
+    function resize() {
         const rect = canvas.getBoundingClientRect();
-        const clientX = (e.touches ? e.touches[0].clientX : e.clientX);
-        const clientY = (e.touches ? e.touches[0].clientY : e.clientY);
-        return {
-            x: (clientX - rect.left) * (1000 / rect.width),
-            y: (clientY - rect.top) * (600 / rect.height)
-        };
+        scale = 1000 / rect.width;
     }
+    window.addEventListener('resize', resize);
+    window.addEventListener('load', resize);
 
-    function handleInput(e) {
-        if (isPaused || disconnected) return;
-        const pos = getScaledInput(e);
-
-        if (isHost) {
-            p1.vx = pos.x - p1.x; p1.vy = pos.y - p1.y;
-            p1.x = Math.min(pos.x, 480);
-            p1.y = Math.max(32, Math.min(568, pos.y));
-            if (currentRound === 2) applyCircleConstraint(p1, "left");
+    function toggleFullScreen() {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch(err => {
+                alert(`Error attempting to enable full-screen mode: ${err.message}`);
+            });
         } else {
-            p2.x = Math.max(pos.x, 520);
-            p2.y = Math.max(32, Math.min(568, pos.y));
-            if (currentRound === 2) applyCircleConstraint(p2, "right");
-            if (conn && conn.open) conn.send({ x: p2.x, y: p2.y });
+            document.exitFullscreen();
         }
     }
 
-    canvas.addEventListener('mousemove', handleInput);
-    canvas.addEventListener('touchstart', (e) => { e.preventDefault(); handleInput(e); }, { passive: false });
-    canvas.addEventListener('touchmove', (e) => { e.preventDefault(); handleInput(e); }, { passive: false });
+    // Input Handling (Universal Mouse + Touch)
+    function handleInput(e) {
+        if (!gameActive || isPaused || disconnected) return;
+        const rect = canvas.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
 
+        const logicalX = (clientX - rect.left) * scale;
+        const logicalY = (clientY - rect.top) * scale;
+
+        if (isHost) {
+            p1.vx = logicalX - p1.x; p1.vy = logicalY - p1.y;
+            p1.x = Math.min(logicalX, 500 - p1.radius);
+            p1.y = Math.max(p1.radius, Math.min(600 - p1.radius, logicalY));
+            if (currentRound === 2) applyCircleConstraint(p1, "left");
+        } else {
+            p2.x = Math.max(logicalX, 500 + p2.radius);
+            p2.y = Math.max(p2.radius, Math.min(600 - p2.radius, logicalY));
+            if (currentRound === 2) applyCircleConstraint(p2, "right");
+            if (conn && conn.open) conn.send({ x: p2.x, y: p2.y });
+        }
+        if(e.cancelable) e.preventDefault();
+    }
+
+    canvas.addEventListener('mousemove', handleInput);
+    canvas.addEventListener('touchstart', handleInput, { passive: false });
+    canvas.addEventListener('touchmove', handleInput, { passive: false });
+
+    // Connectivity
     peer.on('open', id => document.getElementById('my-id').innerText = id);
     peer.on('connection', c => { conn = c; isHost = true; setupConnection(); });
 
@@ -205,56 +166,88 @@
 
     function setupConnection() {
         conn.on('open', () => {
-            document.getElementById('status').innerText = "LINK ACTIVE";
-            gameActive = true;
-            if(isHost) resetPuck();
+            document.getElementById('status').innerText = "LINK ESTABLISHED";
+            disconnected = false; if(isHost) resetPuck();
             gameLoop();
         });
         conn.on('data', data => {
             if (data.type === 'PAUSE_REQ') handlePauseRequest(data.player);
             else if (data.type === 'RESUME') { isPaused = false; updateUI(); }
-            else if (isHost) {
-                p2.vx = data.x - p2.x; p2.vy = data.y - p2.y;
-                p2.x = data.x; p2.y = data.y;
-            } else {
+            else if (isHost) { p2.vx = data.x - p2.x; p2.vy = data.y - p2.y; p2.x = data.x; p2.y = data.y; }
+            else {
                 p1.x = data.p1.x; p1.y = data.p1.y; puck.x = data.puck.x; puck.y = data.puck.y;
                 scores = data.scores; seriesPoints = data.series; pausesLeft = data.pausesLeft;
                 currentRound = data.round; gameActive = data.gameActive; isPaused = data.isPaused;
                 matchStats = data.stats; goalY = data.goalY; respawnTimer = data.respawnTimer;
-                lastWinnerLabel = data.lastWinnerLabel; 
+                lastWinnerLabel = data.lastWinnerLabel; if (respawnTimer >= 158) shakeIntensity = 12;
                 updateUI();
             }
         });
+        conn.on('close', () => handleDisconnection());
     }
 
+    function handleDisconnection() {
+        disconnected = true; gameActive = false; updateUI();
+        document.getElementById('overlay').style.display = 'block';
+        document.getElementById('winner-text').innerText = "DISCONNECTED";
+        document.getElementById('restart-btn').style.display = 'inline-block';
+    }
+
+    // Logic
     function update() {
-        if (shakeIntensity > 0) shakeIntensity *= 0.9;
-        if (isPaused || !isHost || !gameActive) return;
+        if (shakeIntensity > 0) shakeIntensity *= 0.92;
+        if (isPaused || disconnected || !isHost || !gameActive) return;
 
         if (respawnTimer > 0) {
             respawnTimer--;
-            if (respawnTimer === 0) {
-                puck.dx = (Math.random() > 0.5 ? 4 : -4);
-                puck.dy = (Math.random() - 0.5) * 6;
-            }
+            if (respawnTimer === 0) { puck.dx = (Math.random() > 0.5 ? 4 : -4); puck.dy = (Math.random() - 0.5) * 5; }
             syncData(); return;
         }
 
         puck.x += puck.dx; puck.y += puck.dy;
         puck.dx *= puck.friction; puck.dy *= puck.friction;
 
-        if (currentRound === 2) updateCirclePhysics();
-        else updateRectPhysics();
+        if (currentRound === 2) updateCirclePhysics(); else updateRectPhysics();
 
         checkCollision(p1, puck, 1);
         checkCollision(p2, puck, 2);
         updateUI(); syncData();
     }
 
+    function updateRectPhysics() {
+        const curY = (currentRound === 3) ? goalY : 220;
+        if (currentRound === 3) { goalY += 5 * goalDir; if (goalY > 440 || goalY < 0) goalDir *= -1; }
+        
+        if (puck.y < puck.radius || puck.y > 600 - puck.radius) { puck.dy *= -1; puck.y = Math.max(puck.radius, Math.min(600-puck.radius, puck.y)); }
+        
+        if (puck.x < puck.radius) {
+            if (puck.y > curY && puck.y < curY + goalHeight) triggerGoal(1);
+            else { puck.x = puck.radius; puck.dx *= -1; }
+        } else if (puck.x > 1000 - puck.radius) {
+            if (puck.y > curY && puck.y < curY + goalHeight) triggerGoal(2);
+            else { puck.x = 1000 - puck.radius; puck.dx *= -1; }
+        }
+    }
+
+    function updateCirclePhysics() {
+        let dx = puck.x - 500, dy = puck.y - 300, dist = Math.sqrt(dx*dx + dy*dy);
+        if (dist > tableRadius - puck.radius) {
+            let angle = Math.atan2(dy, dx), deg = angle * (180 / Math.PI);
+            if (Math.abs(deg) < 20) triggerGoal(2);
+            else if (Math.abs(deg) > 160) triggerGoal(1);
+            else {
+                let speed = Math.sqrt(puck.dx**2 + puck.dy**2);
+                let reflection = 2 * angle - Math.atan2(puck.dy, puck.dx) + Math.PI;
+                puck.dx = Math.cos(reflection) * speed; puck.dy = Math.sin(reflection) * speed;
+                puck.x = 500 + Math.cos(angle) * (tableRadius - puck.radius - 2);
+                puck.y = 300 + Math.sin(angle) * (tableRadius - puck.radius - 2);
+            }
+        }
+    }
+
     function checkCollision(paddle, pk, pNum) {
         let dx = pk.x - paddle.x, dy = pk.y - paddle.y, dist = Math.sqrt(dx*dx + dy*dy);
         if (dist < paddle.radius + pk.radius) {
-            if ((pNum === 1 && pk.dx < 0) || (pNum === 2 && pk.dx > 0)) matchStats['p' + pNum].saves++;
             lastHitter = pNum;
             let angle = Math.atan2(dy, dx), speed = Math.sqrt(pk.dx**2 + pk.dy**2) + 2;
             pk.dx = Math.cos(angle) * Math.min(speed, 20); pk.dy = Math.sin(angle) * Math.min(speed, 20);
@@ -263,82 +256,34 @@
         }
     }
 
-    function updateRectPhysics() {
-        const curGoalTop = (currentRound === 3) ? goalY : (600 - goalHeight)/2;
-        if (currentRound === 3) {
-            goalY += 5 * goalDir;
-            if (goalY > 600 - goalHeight || goalY < 0) goalDir *= -1;
-        }
-        if (puck.y < 15 || puck.y > 585) puck.dy *= -1;
-        if (puck.x < 15) {
-            if (puck.y > curGoalTop && puck.y < curGoalTop + goalHeight) triggerGoal(1);
-            else { puck.x = 15; puck.dx *= -1; }
-        } else if (puck.x > 985) {
-            if (puck.y > curGoalTop && puck.y < curGoalTop + goalHeight) triggerGoal(2);
-            else { puck.x = 985; puck.dx *= -1; }
-        }
-    }
-
-    function updateCirclePhysics() {
-        let dx = puck.x - centerX, dy = puck.y - centerY, dist = Math.sqrt(dx*dx + dy*dy);
-        if (dist > tableRadius - 15) {
-            let angle = Math.atan2(dy, dx), deg = angle * (180 / Math.PI);
-            if (Math.abs(deg) < 20) triggerGoal(2);
-            else if (Math.abs(deg) > 160) triggerGoal(1);
-            else {
-                let normal = Math.atan2(dy, dx);
-                puck.dx *= -0.99; puck.dy *= -0.99;
-                puck.x = centerX + Math.cos(normal) * (tableRadius - 17);
-                puck.y = centerY + Math.sin(normal) * (tableRadius - 17);
-            }
-        }
-    }
-
-    function applyCircleConstraint(p, side) {
-        let dx = p.x - centerX, dy = p.y - centerY, dist = Math.sqrt(dx*dx + dy*dy);
-        if (dist > tableRadius - p.radius) {
-            let angle = Math.atan2(dy, dx);
-            p.x = centerX + Math.cos(angle) * (tableRadius - p.radius);
-            p.y = centerY + Math.sin(angle) * (tableRadius - p.radius);
-        }
-    }
-
-    function triggerGoal(scoredOnPlayer) {
-        if (scoredOnPlayer === 1) { scores.p2++; if (lastHitter === 2) matchStats.p2.goals++; } 
-        else { scores.p1++; if (lastHitter === 1) matchStats.p1.goals++; }
-        shakeIntensity = 10; resetPuck();
-    }
-
-    function syncData() {
-        if (conn?.open && isHost) {
-            conn.send({ p1, puck, scores, series: seriesPoints, pausesLeft, round: currentRound, gameActive, isPaused, goalY, respawnTimer, lastWinnerLabel, stats: matchStats });
-        }
+    function triggerGoal(scoredOn) {
+        if (scoredOn === 1) scores.p2++; else scores.p1++;
+        shakeIntensity = 15; resetPuck();
     }
 
     function resetPuck() {
-        puck.x = centerX; puck.y = centerY; puck.dx = 0; puck.dy = 0;
-        if (scores.p1 >= WIN_SCORE) startNewRound("PLAYER 1");
-        else if (scores.p2 >= WIN_SCORE) startNewRound("PLAYER 2");
-        else respawnTimer = 120;
+        puck.x = 500; puck.y = 300; puck.dx = 0; puck.dy = 0;
+        if(isHost) {
+            if (scores.p1 >= WIN_SCORE) startNewRound("PLAYER 1");
+            else if (scores.p2 >= WIN_SCORE) startNewRound("PLAYER 2");
+            else respawnTimer = 160;
+        }
     }
 
     function startNewRound(winner) {
-        gameActive = false; lastWinnerLabel = winner; seriesPoints[winner === "PLAYER 1" ? 'p1' : 'p2']++;
-        const isMatchOver = seriesPoints.p1 >= SERIES_TO_WIN || seriesPoints.p2 >= SERIES_TO_WIN;
-        if (isMatchOver) {
-            matchStats.p1.rank = calculateGrade('p1');
-            matchStats.p2.rank = calculateGrade('p2');
+        gameActive = false; seriesPoints[winner === "PLAYER 1" ? 'p1' : 'p2']++;
+        lastWinnerLabel = winner;
+        if(isHost) {
+            matchStats.p1.rank = scores.p1 > scores.p2 ? "S" : "B";
+            matchStats.p2.rank = scores.p2 > scores.p1 ? "S" : "B";
         }
-        updateUI(); syncData(); 
-        if (!isMatchOver) {
+        updateUI(); syncData();
+        if (seriesPoints.p1 < SERIES_TO_WIN && seriesPoints.p2 < SERIES_TO_WIN) {
             setTimeout(() => { scores = {p1:0, p2:0}; currentRound++; gameActive = true; resetPuck(); }, 3000);
         }
     }
 
-    function calculateGrade(p) {
-        let s = (matchStats[p].goals * 20) + (matchStats[p].saves * 10);
-        return s > 300 ? "S" : s > 150 ? "A" : "B";
-    }
+    function syncData() { if (conn && conn.open && isHost) conn.send({ p1, puck, scores, series: seriesPoints, pausesLeft, round: currentRound, gameActive, isPaused, goalY, respawnTimer, lastWinnerLabel, stats: matchStats }); }
 
     function updateUI() {
         document.getElementById('s1').innerText = scores.p1;
@@ -346,41 +291,25 @@
         document.getElementById('round-num').innerText = currentRound;
         document.getElementById('p1-pauses').innerText = pausesLeft.p1;
         document.getElementById('p2-pauses').innerText = pausesLeft.p2;
-        
         const isMatchOver = seriesPoints.p1 >= SERIES_TO_WIN || seriesPoints.p2 >= SERIES_TO_WIN;
         const overlay = document.getElementById('overlay');
 
-        if (isPaused) {
-            overlay.style.display = 'block';
-            document.getElementById('winner-text').innerText = "PAUSED";
-            document.getElementById('resume-btn').style.display = 'inline-block';
-        } else if (!gameActive && lastWinnerLabel) {
-            overlay.style.display = 'block';
-            document.getElementById('winner-text').innerText = lastWinnerLabel + (isMatchOver ? " WINS MATCH" : " WINS ROUND");
-            if (isMatchOver) {
-                document.getElementById('stats-ui').style.display = 'block';
-                document.getElementById('rank-p1').innerText = matchStats.p1.rank;
-                document.getElementById('rank-p2').innerText = matchStats.p2.rank;
-                document.getElementById('restart-btn').style.display = 'inline-block';
-            }
-        } else { overlay.style.display = 'none'; }
-        
-        const renderDots = (id, pts) => {
-            let dots = ""; for(let i=0; i<SERIES_TO_WIN; i++) dots += `<span class="${i < pts ? 'won' : ''}">●</span> `;
-            document.getElementById(id).innerHTML = dots;
-        };
-        renderDots('series-p1', seriesPoints.p1); renderDots('series-p2', seriesPoints.p2);
-    }
-
-    function requestPause() {
-        const p = isHost ? 'p1' : 'p2';
-        if (pausesLeft[p] > 0 && !isPaused) {
-            if (isHost) handlePauseRequest('p1'); else conn.send({ type: 'PAUSE_REQ', player: 'p2' });
+        if (isPaused) { overlay.style.display = 'block'; document.getElementById('winner-text').innerText = "PAUSED"; document.getElementById('resume-btn').style.display = 'inline-block'; }
+        else if (!gameActive) { 
+            overlay.style.display = 'block'; 
+            document.getElementById('winner-text').innerText = lastWinnerLabel + (isMatchOver ? " WINS SERIES" : " WINS ROUND");
+            if(isMatchOver) { document.getElementById('stats-ui').style.display = 'block'; document.getElementById('restart-btn').style.display = 'inline'; }
         }
+        else overlay.style.display = 'none';
+        
+        const dot = (pts) => "● ".repeat(pts).trim(); // Simplified dots for small screens
+        document.getElementById('series-p1').innerHTML = `<span class="won">${dot(seriesPoints.p1)}</span>`;
+        document.getElementById('series-p2').innerHTML = `<span class="won">${dot(seriesPoints.p2)}</span>`;
     }
 
-    function handlePauseRequest(p) { isPaused = true; pausesLeft[p]--; syncData(); updateUI(); }
-    function resumeGame() { isPaused = false; if (isHost) syncData(); else conn.send({ type: 'RESUME' }); updateUI(); }
+    function requestPause() { if(isHost) { isPaused = !isPaused; syncData(); updateUI(); } else conn.send({type:'PAUSE_REQ', player:'p2'}); }
+    function resumeGame() { isPaused = false; if(isHost) syncData(); else conn.send({type:'RESUME'}); updateUI(); }
+    function resetFullMatch() { location.reload(); }
 
     function draw() {
         ctx.save();
@@ -388,36 +317,25 @@
         ctx.fillStyle = '#050505'; ctx.fillRect(0, 0, 1000, 600);
         
         if (currentRound === 2) {
-            ctx.beginPath(); ctx.arc(500, 300, tableRadius, 0, Math.PI*2);
-            ctx.strokeStyle = '#222'; ctx.lineWidth = 8; ctx.stroke();
-            ctx.strokeStyle = '#f0f'; ctx.beginPath(); ctx.arc(500, 300, tableRadius, Math.PI-0.3, Math.PI+0.3); ctx.stroke();
-            ctx.strokeStyle = '#0ff'; ctx.beginPath(); ctx.arc(500, 300, tableRadius, -0.3, 0.3); ctx.stroke();
+            ctx.beginPath(); ctx.arc(500, 300, tableRadius, 0, Math.PI*2); ctx.strokeStyle = '#222'; ctx.lineWidth = 5; ctx.stroke();
+            ctx.beginPath(); ctx.arc(500, 300, tableRadius, -0.4, 0.4); ctx.strokeStyle = '#0ff'; ctx.lineWidth = 10; ctx.stroke();
+            ctx.beginPath(); ctx.arc(500, 300, tableRadius, Math.PI-0.4, Math.PI+0.4); ctx.strokeStyle = '#f0f'; ctx.lineWidth = 10; ctx.stroke();
         } else {
-            ctx.strokeStyle = '#222'; ctx.lineWidth = 10; ctx.strokeRect(0, 0, 1000, 600);
-            const curY = (currentRound === 3) ? goalY : (600 - goalHeight)/2;
+            ctx.strokeStyle = '#222'; ctx.lineWidth = 5; ctx.strokeRect(5, 5, 990, 590);
+            const curY = (currentRound === 3) ? goalY : 220;
             ctx.fillStyle = '#0ff'; ctx.fillRect(0, curY, 8, goalHeight);
             ctx.fillStyle = '#f0f'; ctx.fillRect(992, curY, 8, goalHeight);
         }
 
-        ctx.setLineDash([15, 15]); ctx.strokeStyle = '#111';
-        ctx.beginPath(); ctx.moveTo(500, 0); ctx.lineTo(500, 600); ctx.stroke();
-        ctx.setLineDash([]); 
-
-        ctx.shadowBlur = 15; ctx.shadowColor = '#fff'; ctx.fillStyle = '#fff';
-        ctx.beginPath(); ctx.arc(puck.x, puck.y, 15, 0, Math.PI*2); ctx.fill();
-
-        drawP(p1); drawP(p2);
-
+        ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(puck.x, puck.y, puck.radius, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = p1.color; ctx.beginPath(); ctx.arc(p1.x, p1.y, p1.radius, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = p2.color; ctx.beginPath(); ctx.arc(p2.x, p2.y, p2.radius, 0, Math.PI*2); ctx.fill();
+        
         if (respawnTimer > 0) {
-            ctx.textAlign = "center"; ctx.fillStyle = "#fff"; ctx.font = "bold 80px sans-serif";
-            ctx.fillText(Math.ceil(respawnTimer / 40), 500, 330);
+            ctx.fillStyle = "#fff"; ctx.font = "bold 60px Arial"; ctx.textAlign = "center";
+            ctx.fillText(respawnTimer > 100 ? "GOAL!" : Math.ceil(respawnTimer/60), 500, 300);
         }
-        ctx.restore(); 
-    }
-
-    function drawP(p) {
-        ctx.shadowBlur = 15; ctx.shadowColor = p.color; ctx.fillStyle = p.color;
-        ctx.beginPath(); ctx.arc(p.x, p.y, 32, 0, Math.PI*2); ctx.fill();
+        ctx.restore();
     }
 
     function gameLoop() { update(); draw(); requestAnimationFrame(gameLoop); }
