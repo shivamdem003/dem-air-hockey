@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Air Hockey - Omni Arena (Balanced AI)</title>
+    <title>Air Hockey - Omni Arena (Full Court AI)</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         body { background: #050505; color: #0ff; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; overflow: hidden; }
@@ -48,7 +48,7 @@
         <button onclick="connectToFriend()">Connect</button>
         <div style="border-left: 1px solid #333; height: 20px; margin: 0 5px;"></div>
         <select id="difficulty" onchange="updateDifficulty()">
-            <option value="stalker">EASY: COMPETITIVE STALKER</option>
+            <option value="stalker">EASY: STALKER (Full Coverage)</option>
             <option value="pro" selected>HARD: BALANCED PRO</option>
             <option value="god">INSANE: GOD MODE</option>
         </select>
@@ -229,34 +229,51 @@
         if (shakeIntensity > 0) shakeIntensity *= 0.92;
         if (isPaused || disconnected) return;
 
-        // --- BALANCED AI LOGIC ---
+        // --- GLOBAL AI LOGIC: ENTIRE COURT SIDE COVERAGE ---
         if (isOffline && gameActive && respawnTimer === 0) {
             let targetX = 850;
             let targetY = puck.y;
             let currentAiSpeed = 0.22;
 
+            // Define the center line boundary with a small safety buffer
+            const AI_MIN_X = centerX + p2.radius + 5;
+
             if (aiDifficulty === "stalker") {
-                // Competitive Stalker: Moves faster and actually attacks if puck is close
                 currentAiSpeed = 0.18;
-                if (puck.x > 750) { targetX = puck.x; targetY = puck.y; }
-                else { targetX = 920; targetY = puck.y; }
+                // Stalker now tracks the puck anywhere on its side
+                if (puck.x > centerX) { 
+                    targetX = puck.x; 
+                    targetY = puck.y; 
+                } else { 
+                    targetX = 920; // Default back to defensive line
+                    targetY = puck.y; 
+                }
             } 
             else if (aiDifficulty === "pro" || aiDifficulty === "god") {
                 const isGod = aiDifficulty === "god";
-                const speedMult = isGod ? 0.8 : 0.22; // Slightly slower pro
-                const strikeX = isGod ? centerX - 100 : centerX + 100; // Waits longer to strike in Pro
+                currentAiSpeed = isGod ? 0.85 : 0.23;
                 
-                if (puck.x > strikeX) {
-                    targetX = puck.x;
+                // Strike threshold is now the center line itself
+                // This makes the AI "hunt" the puck as soon as it crosses
+                if (puck.x > centerX) {
+                    targetX = puck.x + (isGod ? 0 : (puck.dx < 0 ? 15 : -15));
                     targetY = puck.y + (puck.dy * (isGod ? 1 : 0.4));
-                    currentAiSpeed = speedMult;
+                } else {
+                    targetX = 850; // Wait at home position
+                    targetY = puck.y;
                 }
             }
 
+            // Ensure the target is never across the center line
+            targetX = Math.max(AI_MIN_X, targetX);
+
             p2.x += (targetX - p2.x) * currentAiSpeed;
             p2.y += (targetY - p2.y) * currentAiSpeed;
-            p2.x = Math.max(centerX + p2.radius + 10, Math.min(p2.x, canvas.width - p2.radius));
+            
+            // Hard physics constraints for boundaries
+            p2.x = Math.max(AI_MIN_X, Math.min(p2.x, canvas.width - p2.radius));
             p2.y = Math.max(p2.radius, Math.min(p2.y, canvas.height - p2.radius));
+            
             if (currentRound === 2) applyCircleConstraint(p2, "right");
             
             p2.vx = p2.x - p2.lastX; p2.vy = p2.y - p2.lastY;
