@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Air Hockey - Omni Arena (Hard AI)</title>
+    <title>Air Hockey - Omni Arena (Aggressive AI)</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         body { background: #050505; color: #0ff; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; overflow: hidden; }
@@ -72,7 +72,7 @@
     </div>
 
     <canvas id="gameCanvas" width="1000" height="600"></canvas>
-    <div id="status">PRACTICE MODE: HARD AI ACTIVE</div>
+    <div id="status">PRACTICE MODE: PRO AI ACTIVE</div>
 
     <div id="overlay">
         <h1 id="winner-text" style="margin:0; font-size: 2.2rem;">-</h1>
@@ -127,7 +127,7 @@
         p2: { goals: 0, saves: 0, ownGoals: 0, totalHits: 0, rank: "C" }
     };
 
-    const puck = { x: 500, y: 300, dx: 0, dy: 0, radius: 15, friction: 0.988, maxSpeed: 17 };
+    const puck = { x: 500, y: 300, dx: 0, dy: 0, radius: 15, friction: 0.988, maxSpeed: 18 };
     const p1 = { x: 150, y: 300, vx: 0, vy: 0, lastX: 150, lastY: 300, radius: 32, color: '#0ff' };
     const p2 = { x: 850, y: 300, vx: 0, vy: 0, lastX: 850, lastY: 300, radius: 32, color: '#f0f' };
     let goalY = (canvas.height - goalHeight) / 2, goalDir = 1;
@@ -235,32 +235,40 @@
         if (shakeIntensity > 0) shakeIntensity *= 0.92;
         if (isPaused || disconnected) return;
 
-        // HARD OFFLINE AI LOGIC
+        // --- ENHANCED HARD OFFLINE AI LOGIC ---
         if (isOffline && gameActive && respawnTimer === 0) {
-            const aiSpeed = 0.22; 
-            const strikeThreshold = centerX + 150;
-            let targetY = puck.y;
+            const aiSpeed = 0.25; 
+            const strikeThreshold = centerX + 50; 
             let targetX = 850;
-            if (puck.x > strikeThreshold && puck.dx >= -2) {
-                targetX = puck.x - 20; 
-                targetY = puck.y + (puck.dy * 2); 
+            let targetY = puck.y;
+
+            if (puck.x > strikeThreshold) {
+                targetX = puck.x + (puck.dx < 0 ? 10 : -10);
+                targetY = puck.y + (puck.dy * 0.5);
+                let distToPuck = Math.sqrt((p2.x - puck.x)**2 + (p2.y - puck.y)**2);
+                if (distToPuck < 120) {
+                    targetX = puck.x; targetY = puck.y;
+                    p2.x += (targetX - p2.x) * 0.45;
+                    p2.y += (targetY - p2.y) * 0.45;
+                }
             }
+
             p2.x += (targetX - p2.x) * aiSpeed;
             p2.y += (targetY - p2.y) * aiSpeed;
             p2.x = Math.max(centerX + p2.radius + 10, Math.min(p2.x, canvas.width - p2.radius));
             p2.y = Math.max(p2.radius, Math.min(p2.y, canvas.height - p2.radius));
             if (currentRound === 2) applyCircleConstraint(p2, "right");
+            
             p2.vx = p2.x - p2.lastX; p2.vy = p2.y - p2.lastY;
             p2.lastX = p2.x; p2.lastY = p2.y;
         }
 
         if (!isHost && !isOffline) return;
-
         if (respawnTimer > 0) {
             respawnTimer--;
             if (respawnTimer === 0) {
-                puck.dx = (Math.random() > 0.5 ? 2.5 : -2.5);
-                puck.dy = (Math.random() - 0.5) * 4;
+                puck.dx = (Math.random() > 0.5 ? 3 : -3);
+                puck.dy = (Math.random() - 0.5) * 5;
                 lastHitter = 0;
             }
             if(!isOffline) syncData(); return;
