@@ -40,7 +40,7 @@
         .rank-b { color: #00ff00; }
         .rank-c { color: #0084ff; }
         .rank-d { color: #888; }
-        #status { color: #555; margin-top: 10px; font-size: 0.9rem; }
+        #status { color: #0f0; margin-top: 10px; font-size: 0.9rem; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -62,7 +62,7 @@
         
         <div class="round-display">
             <div id="round-label"><b>PHASE <span id="round-num">1</span></b></div>
-            <span id="table-type">VORTEX PIPES</span>
+            <span id="table-type">ACCELERATION SURGE</span>
         </div>
 
         <div style="display: flex; flex-direction: column; align-items: center;">
@@ -72,7 +72,7 @@
     </div>
 
     <canvas id="gameCanvas" width="1000" height="600"></canvas>
-    <div id="status">Waiting for connection...</div>
+    <div id="status">PRACTICE MODE: WAITING FOR PEER</div>
 
     <div id="overlay">
         <h1 id="winner-text" style="margin:0; font-size: 2.2rem;">-</h1>
@@ -112,7 +112,7 @@
     const ctx = canvas.getContext('2d');
     const peer = new Peer(); 
     let conn;
-    let isHost = false, gameActive = true, isPaused = false, disconnected = false;
+    let isHost = true, isOffline = true, gameActive = true, isPaused = false, disconnected = false;
 
     const centerX = 500, centerY = 300, tableRadius = 280, cornerRadius = 45, goalHeight = 160;
     const WIN_SCORE = 13, SERIES_TO_WIN = 2;
@@ -127,25 +127,41 @@
         p2: { goals: 0, saves: 0, ownGoals: 0, totalHits: 0, rank: "C" }
     };
 
-    // PHYSICS: Slower, Natural Movement
     const puck = { x: 500, y: 300, dx: 0, dy: 0, radius: 15, friction: 0.988, maxSpeed: 17 };
     const p1 = { x: 150, y: 300, vx: 0, vy: 0, lastX: 150, lastY: 300, radius: 32, color: '#0ff' };
     const p2 = { x: 850, y: 300, vx: 0, vy: 0, lastX: 850, lastY: 300, radius: 32, color: '#f0f' };
     let goalY = (canvas.height - goalHeight) / 2, goalDir = 1;
 
+    // START GAME LOOP IMMEDIATELY FOR OFFLINE MODE
+    window.onload = () => {
+        resetPuck();
+        gameLoop();
+    };
+
     peer.on('open', id => document.getElementById('my-id').innerText = id);
-    peer.on('connection', c => { conn = c; isHost = true; setupConnection(); });
+    
+    peer.on('connection', c => { 
+        conn = c; 
+        isHost = true; 
+        isOffline = false;
+        setupConnection(); 
+    });
 
     function connectToFriend() {
-        conn = peer.connect(document.getElementById('remote-id').value);
-        isHost = false; setupConnection();
+        const id = document.getElementById('remote-id').value;
+        if(!id) return;
+        conn = peer.connect(id);
+        isHost = false; 
+        isOffline = false;
+        setupConnection();
     }
 
     function setupConnection() {
         conn.on('open', () => {
             document.getElementById('status').innerText = "LINK ESTABLISHED";
-            disconnected = false; if(isHost) resetPuck();
-            gameLoop();
+            document.getElementById('status').style.color = "#0ff";
+            disconnected = false; 
+            if(isHost) resetPuck();
         });
         conn.on('close', () => handleDisconnection());
         conn.on('data', data => {
@@ -172,6 +188,8 @@
         disconnected = true; gameActive = false; isPaused = false; updateUI();
         document.getElementById('overlay').style.display = 'block';
         document.getElementById('winner-text').innerText = "CONNECTION LOST";
+        document.getElementById('status').innerText = "DISCONNECTED";
+        document.getElementById('status').style.color = "#f00";
         document.getElementById('restart-btn').style.display = 'inline-block';
     }
 
@@ -183,7 +201,7 @@
             y: (e.clientY || (e.touches ? e.touches[0].clientY : 0)) - rect.top
         };
 
-        if (isHost) {
+        if (isHost || isOffline) {
             p1.x = Math.max(p1.radius, Math.min(pos.x, centerX - p1.radius - 3));
             p1.y = Math.max(p1.radius, Math.min(pos.y, canvas.height - p1.radius));
             if (currentRound === 2) applyCircleConstraint(p1, "left");
@@ -210,7 +228,6 @@
         p.x = (side === "left") ? Math.min(p.x, centerX - p.radius - 3) : Math.max(p.x, centerX + p.radius + 3);
     }
 
-    // RANKING ENGINE (Host side logic)
     function calculateGrade(pKey) {
         const s = matchStats[pKey];
         const isWinner = seriesPoints[pKey] >= SERIES_TO_WIN;
@@ -219,9 +236,7 @@
         const offenseBonus = s.goals * 45;
         const penalty = s.ownGoals * 80;
         const winBonus = isWinner ? 200 : 0;
-
         const totalScore = Math.max(0, efficiencyBase + defenseBonus + offenseBonus + winBonus - penalty);
-        
         if (totalScore >= 950) return "S";
         if (totalScore >= 700) return "A";
         if (totalScore >= 450) return "B";
@@ -232,19 +247,28 @@
     function update() {
         if (shakeIntensity > 0) shakeIntensity *= 0.92;
         if (isPaused || disconnected) return;
-        if (!isHost || !gameActive) return;
+
+        // OFFLINE AI LOGIC
+        if (isOffline && gameActive && respawnTimer === 0) {
+            let targetY = puck.y;
+            let easedY = p2.y + (targetY - p2.y) * 0.1; 
+            p2.y = Math.max(p2.radius, Math.min(easedY, canvas.height - p2.radius));
+            p2.x = 850; 
+            p2.vx = 0; p2.vy = 0; 
+        }
+
+        if (!isHost && !isOffline) return;
 
         if (respawnTimer > 0) {
             respawnTimer--;
             if (respawnTimer === 0) {
-                puck.dx = (Math.random() > 0.5 ? 2.0 : -2.0);
-                puck.dy = (Math.random() - 0.5) * 3;
+                puck.dx = (Math.random() > 0.5 ? 2.5 : -2.5);
+                puck.dy = (Math.random() - 0.5) * 4;
                 lastHitter = 0;
             }
-            syncData(); return;
+            if(!isOffline) syncData(); return;
         }
 
-        // Map 2: Gravity Well Logic
         if (currentRound === 2) {
             let dx = centerX - puck.x, dy = centerY - puck.y;
             let dist = Math.sqrt(dx*dx + dy*dy);
@@ -263,23 +287,21 @@
 
         checkCollision(p1, puck, 1);
         checkCollision(p2, puck, 2);
-        updateUI(); syncData();
+        updateUI(); 
+        if(!isOffline) syncData();
     }
 
     function checkCollision(paddle, pk, pNum) {
         let dx = pk.x - paddle.x, dy = pk.y - paddle.y, dist = Math.sqrt(dx*dx + dy*dy);
         let minDist = paddle.radius + pk.radius;
-
         if (dist < minDist) {
             matchStats['p' + pNum].totalHits++;
             let nx = dx / dist, ny = dy / dist;
             let overlap = minDist - dist;
             pk.x += nx * (overlap + 1); pk.y += ny * (overlap + 1);
-
             let relativeVX = pk.dx - (paddle.vx || 0);
             let relativeVY = pk.dy - (paddle.vy || 0);
             let velAlongNormal = relativeVX * nx + relativeVY * ny;
-
             if (velAlongNormal < 0) {
                 let j = -(1 + 1.25) * velAlongNormal; 
                 pk.dx += j * nx; pk.dy += j * ny;
@@ -311,7 +333,7 @@
         const curGoalTop = (currentRound === 3) ? goalY : (canvas.height - goalHeight)/2;
         const curGoalBottom = curGoalTop + goalHeight;
         
-        // Map 1: Vortex Pipes Accelerators
+        // MAP 1: VORTEX PIPES ACCELERATION FACTOR
         if (currentRound === 1) {
             const pxStart = centerX - 75, pxEnd = centerX + 75;
             if (puck.y < puck.radius && puck.x > pxStart && puck.x < pxEnd) {
@@ -373,26 +395,19 @@
         } else if (!gameActive) {
             overlay.style.display = 'block';
             document.getElementById('winner-text').innerText = isMatchOver ? lastWinnerLabel + " WINS MATCH" : lastWinnerLabel + " WINS PHASE";
-            
             if(isMatchOver) {
-                const statsUI = document.getElementById('stats-ui');
-                statsUI.style.display = 'block';
+                document.getElementById('stats-ui').style.display = 'block';
                 const r1 = document.getElementById('rank-p1'), r2 = document.getElementById('rank-p2');
-                
-                r1.innerText = matchStats.p1.rank || "C";
-                r2.innerText = matchStats.p2.rank || "C";
-                
+                r1.innerText = matchStats.p1.rank || "C"; r2.innerText = matchStats.p2.rank || "C";
                 r1.className = `rank-letter rank-${(matchStats.p1.rank || "C").toLowerCase()}`;
                 r2.className = `rank-letter rank-${(matchStats.p2.rank || "C").toLowerCase()}`;
-                
                 document.getElementById('stat-p1-goals').innerText = matchStats.p1.goals;
                 document.getElementById('stat-p2-goals').innerText = matchStats.p2.goals;
                 document.getElementById('stat-p1-saves').innerText = matchStats.p1.saves;
                 document.getElementById('stat-p2-saves').innerText = matchStats.p2.saves;
                 document.getElementById('stat-p1-own').innerText = matchStats.p1.ownGoals;
                 document.getElementById('stat-p2-own').innerText = matchStats.p2.ownGoals;
-                
-                if(isHost) document.getElementById('restart-btn').style.display = 'inline-block';
+                if(isHost || isOffline) document.getElementById('restart-btn').style.display = 'inline-block';
             }
         } else { overlay.style.display = 'none'; }
         
@@ -405,7 +420,7 @@
 
     function resetPuck() {
         puck.x = centerX; puck.y = centerY; puck.dx = 0; puck.dy = 0;
-        if(isHost) {
+        if(isHost || isOffline) {
             if (scores.p1 >= WIN_SCORE) startNewRound("PLAYER 1");
             else if (scores.p2 >= WIN_SCORE) startNewRound("PLAYER 2");
             else respawnTimer = 160;
@@ -414,18 +429,13 @@
 
     function startNewRound(winner) {
         gameActive = false; lastWinnerLabel = winner; seriesPoints[winner === "PLAYER 1" ? 'p1' : 'p2']++;
-        
         const isMatchOver = seriesPoints.p1 >= SERIES_TO_WIN || seriesPoints.p2 >= SERIES_TO_WIN;
-        
-        if (isMatchOver && isHost) {
-            // Finalize ranks for both independently
+        if (isMatchOver && (isHost || isOffline)) {
             matchStats.p1.rank = calculateGrade('p1');
             matchStats.p2.rank = calculateGrade('p2');
         }
-        
-        syncData(); 
+        if(!isOffline) syncData(); 
         updateUI(); 
-        
         if (!isMatchOver) {
             setTimeout(() => {
                 if (disconnected) return;
@@ -485,18 +495,18 @@
     }
 
     function requestPause() {
-        const pKey = isHost ? 'p1' : 'p2';
+        const pKey = (isHost || isOffline) ? 'p1' : 'p2';
         if (pausesLeft[pKey] > 0 && !isPaused) {
-            if (isHost) handlePauseRequest('p1'); else conn.send({ type: 'PAUSE_REQ', player: 'p2' });
+            if (isHost || isOffline) handlePauseRequest('p1'); else conn.send({ type: 'PAUSE_REQ', player: 'p2' });
         }
     }
 
     function handlePauseRequest(player) {
-        isPaused = true; pausesLeft[player]--; syncData(); updateUI();
+        isPaused = true; pausesLeft[player]--; if(!isOffline) syncData(); updateUI();
     }
 
     function resumeGame() {
-        isPaused = false; if (isHost) syncData(); else conn.send({ type: 'RESUME' });
+        isPaused = false; if (isHost && !isOffline) syncData(); else if (!isOffline) conn.send({ type: 'RESUME' });
         updateUI();
     }
 
