@@ -29,7 +29,6 @@
         
         #overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.96); padding: 40px; border-radius: 20px; text-align: center; border: 2px solid #0ff; display: none; z-index: 100; min-width: 500px; }
         
-        /* Stats Table Styling */
         .stats-container { margin-top: 20px; width: 100%; border-top: 1px solid #333; padding-top: 20px; }
         .stats-grid { display: grid; grid-template-columns: 1fr 1.5fr 1fr; gap: 10px; align-items: center; }
         .stat-label { color: #888; font-size: 0.8rem; text-transform: uppercase; }
@@ -37,11 +36,10 @@
         .p1-stat { color: #0ff !important; }
         .p2-stat { color: #f0f !important; }
 
-        /* Rank Styling */
         .rank-box { margin-bottom: 15px; }
         .rank-letter { font-size: 4rem; font-weight: 900; line-height: 1; margin: 5px 0; }
-        .rank-s { color: #ffdf00; text-shadow: 0 0 20px rgba(255,223,0,0.5); }
-        .rank-a { color: #ff4e00; }
+        .rank-s { color: #ffdf00; text-shadow: 0 0 25px rgba(255,223,0,0.8); }
+        .rank-a { color: #ff4e00; text-shadow: 0 0 15px rgba(255,78,0,0.5); }
         .rank-b { color: #00ff00; }
         .rank-c { color: #0084ff; }
         .rank-d { color: #888; }
@@ -88,12 +86,12 @@
             <div class="stats-grid">
                 <div class="rank-box">
                     <div class="stat-label">Rank</div>
-                    <div class="rank-letter rank-s" id="rank-p1">S</div>
+                    <div class="rank-letter" id="rank-p1">-</div>
                 </div>
                 <div></div>
                 <div class="rank-box">
                     <div class="stat-label">Rank</div>
-                    <div class="rank-letter rank-s" id="rank-p2">S</div>
+                    <div class="rank-letter" id="rank-p2">-</div>
                 </div>
 
                 <div class="stat-val p1-stat" id="stat-p1-goals">0</div>
@@ -131,8 +129,8 @@
     let respawnTimer = 0, lastHitter = 0;
 
     let matchStats = {
-        p1: { goals: 0, saves: 0, ownGoals: 0, rank: "C" },
-        p2: { goals: 0, saves: 0, ownGoals: 0, rank: "C" }
+        p1: { goals: 0, saves: 0, ownGoals: 0, totalHits: 0, rank: "C" },
+        p2: { goals: 0, saves: 0, ownGoals: 0, totalHits: 0, rank: "C" }
     };
 
     const puck = { x: 500, y: 300, dx: 0, dy: 0, radius: 15, friction: 0.993 };
@@ -341,6 +339,7 @@
     function checkCollision(paddle, pk, pNum) {
         let dx = pk.x - paddle.x, dy = pk.y - paddle.y, dist = Math.sqrt(dx*dx + dy*dy);
         if (dist < paddle.radius + pk.radius) {
+            matchStats['p' + pNum].totalHits++;
             if ((pNum === 1 && pk.dx < 0) || (pNum === 2 && pk.dx > 0)) matchStats['p' + pNum].saves++;
             lastHitter = pNum;
             let angle = Math.atan2(dy, dx), impactVel = Math.sqrt(paddle.vx**2 + paddle.vy**2);
@@ -353,11 +352,21 @@
 
     function calculateGrade(pKey) {
         const s = matchStats[pKey];
-        const score = (s.goals * 10) + (s.saves * 5) - (s.ownGoals * 15);
-        if (score >= 40 && s.ownGoals === 0) return "S";
-        if (score >= 30) return "A";
-        if (score >= 15) return "B";
-        if (score >= 0) return "C";
+        const isWinner = seriesPoints[pKey] >= SERIES_TO_WIN;
+        
+        // Advanced Scoring Formula
+        // Base: 25 points per goal, 10 per save
+        // Penalty: 40 per own goal
+        // Bonus: Efficiency (Goals per hit ratio)
+        const accuracy = s.totalHits > 0 ? (s.goals / s.totalHits) : 0;
+        let score = (s.goals * 25) + (s.saves * 12) - (s.ownGoals * 45) + (accuracy * 100);
+        
+        if (isWinner) score += 50; // Victory bonus
+        
+        if (score >= 600) return "S";
+        if (score >= 450) return "A";
+        if (score >= 300) return "B";
+        if (score >= 150) return "C";
         return "D";
     }
 
@@ -439,7 +448,7 @@
 
     function resetFullMatch() {
         seriesPoints = { p1: 0, p2: 0 }; scores = { p1: 0, p2: 0 };
-        matchStats = { p1: { goals: 0, saves: 0, ownGoals: 0, rank: "C" }, p2: { goals: 0, saves: 0, ownGoals: 0, rank: "C" } };
+        matchStats = { p1: { goals: 0, saves: 0, ownGoals: 0, totalHits: 0, rank: "C" }, p2: { goals: 0, saves: 0, ownGoals: 0, totalHits: 0, rank: "C" } };
         currentRound = 1; gameActive = true; lastWinnerLabel = ""; pausesLeft = { p1: 4, p2: 4 };
         disconnected = false; document.getElementById('restart-btn').style.display = 'none';
         resetPuck(); updateUI();
