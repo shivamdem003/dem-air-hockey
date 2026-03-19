@@ -98,8 +98,8 @@
 
     const roundNames = ["VELOCITY SURGE", "ORBITAL COLISEUM", "MOVING OVERDRIVE"];
     const pipes = [
-        { x: 500, y: 120, w: 180, h: 40, target: "right" },
-        { x: 500, y: 480, w: 180, h: 40, target: "left" }
+        { x: 500, y: 30, w: 220, h: 60, target: "right" }, // Top Center
+        { x: 500, y: 570, w: 220, h: 60, target: "left" }  // Bottom Center
     ];
 
     peer.on('open', id => document.getElementById('my-id').innerText = id);
@@ -169,14 +169,18 @@
         if (currentRound === 1) {
             pipes.forEach(p => {
                 if (puck.x > p.x - p.w/2 && puck.x < p.x + p.w/2 && puck.y > p.y - p.h/2 && puck.y < p.y + p.h/2) {
-                    puck.dx = p.target === "right" ? 18 : -18; puck.dy *= 0.2;
+                    puck.dx = p.target === "right" ? 19 : -19; puck.dy *= 0.1;
+                    shakeIntensity = 3;
                 }
             });
         }
         
         if (currentRound === 2) {
             let dx = centerX - puck.x, dy = centerY - puck.y, dist = Math.sqrt(dx*dx + dy*dy);
-            if (dist < tableRadius) { puck.dx += dx * 0.0006; puck.dy += dy * 0.0006; }
+            if (dist < tableRadius) { 
+                let force = 0.0008; 
+                puck.dx += dx * force; puck.dy += dy * force; 
+            }
             updateCirclePhysics();
         } else {
             updateRectPhysics();
@@ -215,8 +219,8 @@
         if (dist < p.radius + pk.radius) {
             if ((pNum === 1 && pk.dx < 0) || (pNum === 2 && pk.dx > 0)) matchStats['p' + pNum].saves++;
             lastHitter = pNum;
-            let angle = Math.atan2(dy, dx), impact = Math.sqrt(p.vx**2 + p.vy**2), speed = Math.sqrt(pk.dx**2 + pk.dy**2) + (impact * 0.4) + 1.5;
-            pk.dx = Math.cos(angle) * Math.min(speed, 22); pk.dy = Math.sin(angle) * Math.min(speed, 22);
+            let angle = Math.atan2(dy, dx), impact = Math.sqrt(p.vx**2 + p.vy**2), speed = Math.sqrt(pk.dx**2 + pk.dy**2) + (impact * 0.45) + 1.8;
+            pk.dx = Math.cos(angle) * Math.min(speed, 23); pk.dy = Math.sin(angle) * Math.min(speed, 23);
             pk.x = p.x + Math.cos(angle) * (p.radius + pk.radius + 2);
             pk.y = p.y + Math.sin(angle) * (p.radius + pk.radius + 2);
         }
@@ -264,15 +268,22 @@
         
         if (currentRound === 1) {
             pipes.forEach(p => {
-                ctx.fillStyle = 'rgba(0, 255, 100, 0.1)'; ctx.fillRect(p.x - p.w/2, p.y - p.h/2, p.w, p.h);
+                ctx.fillStyle = 'rgba(0, 255, 100, 0.08)'; ctx.fillRect(p.x - p.w/2, p.y - p.h/2, p.w, p.h);
                 ctx.strokeStyle = '#0f6'; ctx.lineWidth = 2; ctx.strokeRect(p.x - p.w/2, p.y - p.h/2, p.w, p.h);
+                ctx.fillStyle = '#0f6'; ctx.globalAlpha = 0.3;
+                for(let i=0; i<3; i++) {
+                    let off = (Date.now() / 10 + i * 70) % p.w;
+                    let lineX = p.target === "right" ? (p.x - p.w/2 + off) : (p.x + p.w/2 - off);
+                    ctx.fillRect(lineX, p.y - p.h/2, 4, p.h);
+                }
+                ctx.globalAlpha = 1.0;
             });
         }
         
         if (currentRound === 2) {
             ctx.save(); ctx.beginPath(); ctx.arc(centerX, centerY, tableRadius, 0, Math.PI * 2); ctx.clip();
             let grad = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, tableRadius);
-            grad.addColorStop(0, 'rgba(0, 255, 255, 0.1)'); grad.addColorStop(1, 'transparent');
+            grad.addColorStop(0, 'rgba(0, 255, 255, 0.15)'); grad.addColorStop(1, 'transparent');
             ctx.fillStyle = grad; ctx.fill(); ctx.restore();
             ctx.strokeStyle = '#222'; ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(centerX, centerY, tableRadius, 0, Math.PI*2); ctx.stroke();
             ctx.lineWidth = 10; ctx.strokeStyle = '#f0f'; ctx.beginPath(); ctx.arc(centerX, centerY, tableRadius, -0.35, 0.35); ctx.stroke();
