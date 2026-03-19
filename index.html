@@ -128,8 +128,7 @@
         p2: { goals: 0, saves: 0, ownGoals: 0, totalHits: 0, rank: "C" }
     };
 
-    // PUCK PHYSICS: friction 0.994 is the "sweet spot" for air-hockey glide
-    const puck = { x: 500, y: 300, dx: 0, dy: 0, radius: 15, friction: 0.994, maxSpeed: 22 };
+    const puck = { x: 500, y: 300, dx: 0, dy: 0, radius: 15, friction: 0.994, maxSpeed: 23 };
     const p1 = { x: 150, y: 300, vx: 0, vy: 0, lastX: 150, lastY: 300, radius: 32, color: '#0ff' };
     const p2 = { x: 850, y: 300, vx: 0, vy: 0, lastX: 850, lastY: 300, radius: 32, color: '#f0f' };
     let goalY = (canvas.height - goalHeight) / 2, goalDir = 1;
@@ -190,19 +189,17 @@
         };
 
         if (isHost) {
-            // P1: Keep inside left half and away from walls
-            p1.x = Math.max(p1.radius, Math.min(pos.x, (canvas.width / 2) - p1.radius - 2));
+            // Strict clamping: p1 radius + 2px gap from center line
+            p1.x = Math.max(p1.radius, Math.min(pos.x, centerX - p1.radius - 2));
             p1.y = Math.max(p1.radius, Math.min(pos.y, canvas.height - p1.radius));
             if (currentRound === 2) applyCircleConstraint(p1, "left");
-            
             p1.vx = p1.x - p1.lastX; p1.vy = p1.y - p1.lastY;
             p1.lastX = p1.x; p1.lastY = p1.y;
         } else {
-            // P2: Keep inside right half and away from walls
-            p2.x = Math.max((canvas.width / 2) + p2.radius + 2, Math.min(pos.x, canvas.width - p2.radius));
+            // Strict clamping: p2 radius + 2px gap from center line
+            p2.x = Math.max(centerX + p2.radius + 2, Math.min(pos.x, canvas.width - p2.radius));
             p2.y = Math.max(p2.radius, Math.min(pos.y, canvas.height - p2.radius));
             if (currentRound === 2) applyCircleConstraint(p2, "right");
-            
             if (conn && conn.open) conn.send({ x: p2.x, y: p2.y });
         }
     }
@@ -217,7 +214,6 @@
             p.x = centerX + Math.cos(angle) * (tableRadius - p.radius);
             p.y = centerY + Math.sin(angle) * (tableRadius - p.radius);
         }
-        // Force the center-line limit even in circle mode
         p.x = (side === "left") ? Math.min(p.x, centerX - p.radius - 2) : Math.max(p.x, centerX + p.radius + 2);
     }
 
@@ -229,7 +225,7 @@
         if (respawnTimer > 0) {
             respawnTimer--;
             if (respawnTimer === 0) {
-                // RESET: Start off slow (speed 2.5 instead of 4) for natural feel
+                // Natural slow start
                 puck.dx = (Math.random() > 0.5 ? 2.5 : -2.5);
                 puck.dy = (Math.random() - 0.5) * 3;
                 lastHitter = 0;
@@ -240,7 +236,6 @@
         puck.x += puck.dx; puck.y += puck.dy;
         puck.dx *= puck.friction; puck.dy *= puck.friction;
 
-        // Friction floor to prevent micro-jitters
         if (Math.abs(puck.dx) < 0.1) puck.dx = 0;
         if (Math.abs(puck.dy) < 0.1) puck.dy = 0;
 
@@ -259,8 +254,6 @@
         if (dist < minDist) {
             matchStats['p' + pNum].totalHits++;
             let nx = dx / dist, ny = dy / dist;
-            
-            // Fix: Shift puck out of paddle instantly to avoid double-bounces
             let overlap = minDist - dist;
             pk.x += nx * (overlap + 1); pk.y += ny * (overlap + 1);
 
@@ -269,7 +262,7 @@
             let velAlongNormal = relativeVX * nx + relativeVY * ny;
 
             if (velAlongNormal < 0) {
-                let restitution = 1.3; // High bounce energy
+                let restitution = 1.35; 
                 let j = -(1 + restitution) * velAlongNormal;
                 pk.dx += j * nx; pk.dy += j * ny;
 
@@ -279,7 +272,6 @@
                     pk.dy = (pk.dy / speed) * pk.maxSpeed;
                 }
             }
-
             lastHitter = pNum;
             if ((pNum === 1 && pk.dx < 0) || (pNum === 2 && pk.dx > 0)) matchStats['p' + pNum].saves++;
         }
@@ -308,20 +300,23 @@
         const curGoalTop = (currentRound === 3) ? goalY : (canvas.height - goalHeight)/2;
         const curGoalBottom = curGoalTop + goalHeight;
         
+        // Restore Round 1 Acceleration Factor
         if (currentRound === 1) {
             const pxStart = centerX - 75, pxEnd = centerX + 75;
             if (puck.y < puck.radius && puck.x > pxStart && puck.x < pxEnd) {
-                puck.dy = 8; puck.y = puck.radius + 5;
+                puck.dy = 14; puck.y = puck.radius + 5; // Slingshot down
+                shakeIntensity = 5;
             } else if (puck.y > canvas.height - puck.radius && puck.x > pxStart && puck.x < pxEnd) {
-                puck.dy = -8; puck.y = canvas.height - puck.radius - 5;
+                puck.dy = -14; puck.y = canvas.height - puck.radius - 5; // Slingshot up
+                shakeIntensity = 5;
             }
         }
+
         if (currentRound === 3) {
             goalY += 5.5 * goalDir;
             if (goalY > canvas.height - goalHeight || goalY < 0) goalDir *= -1;
         }
 
-        // Natural Bounce Dampening on walls
         if (puck.y < puck.radius) { puck.y = puck.radius; puck.dy *= -0.85; }
         else if (puck.y > canvas.height - puck.radius) { puck.y = canvas.height - puck.radius; puck.dy *= -0.85; }
 
