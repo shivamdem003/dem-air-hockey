@@ -24,7 +24,6 @@
         
         #pause-btn { background: #ffaa00; }
         .pause-count { font-size: 0.8rem; color: #888; margin-left: 5px; }
-
         input { background: #111; border: 1px solid #444; color: white; padding: 8px; border-radius: 4px; outline: none; width: 180px; }
         
         #overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.96); padding: 40px; border-radius: 20px; text-align: center; border: 2px solid #0ff; display: none; z-index: 100; min-width: 500px; }
@@ -127,7 +126,8 @@
         p2: { goals: 0, saves: 0, ownGoals: 0, totalHits: 0, rank: "C" }
     };
 
-    const puck = { x: 500, y: 300, dx: 0, dy: 0, radius: 15, friction: 0.994, maxSpeed: 23 };
+    // PHYSICS TUNED FOR SLOWER, NATURAL MOVEMENT
+    const puck = { x: 500, y: 300, dx: 0, dy: 0, radius: 15, friction: 0.988, maxSpeed: 17 };
     const p1 = { x: 150, y: 300, vx: 0, vy: 0, lastX: 150, lastY: 300, radius: 32, color: '#0ff' };
     const p2 = { x: 850, y: 300, vx: 0, vy: 0, lastX: 850, lastY: 300, radius: 32, color: '#f0f' };
     let goalY = (canvas.height - goalHeight) / 2, goalDir = 1;
@@ -178,8 +178,8 @@
         if (!gameActive || isPaused || disconnected) return;
         const rect = canvas.getBoundingClientRect();
         const pos = {
-            x: (e.clientX || e.touches?.[0].clientX) - rect.left,
-            y: (e.clientY || e.touches?.[0].clientY) - rect.top
+            x: (e.clientX || (e.touches ? e.touches[0].clientX : 0)) - rect.left,
+            y: (e.clientY || (e.touches ? e.touches[0].clientY : 0)) - rect.top
         };
 
         if (isHost) {
@@ -209,6 +209,22 @@
         p.x = (side === "left") ? Math.min(p.x, centerX - p.radius - 3) : Math.max(p.x, centerX + p.radius + 3);
     }
 
+    function calculateGrade(pKey) {
+        const s = matchStats[pKey];
+        const isWinner = seriesPoints[pKey] >= SERIES_TO_WIN;
+        const efficiencyBase = s.totalHits > 0 ? (s.goals / s.totalHits) * 500 : 0;
+        const defenseBonus = s.saves * 25;
+        const offenseBonus = s.goals * 40;
+        const penalty = s.ownGoals * 60;
+        const winBonus = isWinner ? 150 : 0;
+        const totalScore = Math.max(0, efficiencyBase + defenseBonus + offenseBonus + winBonus - penalty);
+        if (totalScore >= 800) return "S";
+        if (totalScore >= 600) return "A";
+        if (totalScore >= 400) return "B";
+        if (totalScore >= 200) return "C";
+        return "D";
+    }
+
     function update() {
         if (shakeIntensity > 0) shakeIntensity *= 0.92;
         if (isPaused || disconnected) return;
@@ -217,19 +233,19 @@
         if (respawnTimer > 0) {
             respawnTimer--;
             if (respawnTimer === 0) {
-                puck.dx = (Math.random() > 0.5 ? 2.5 : -2.5);
-                puck.dy = (Math.random() - 0.5) * 4;
+                puck.dx = (Math.random() > 0.5 ? 2.0 : -2.0);
+                puck.dy = (Math.random() - 0.5) * 3;
                 lastHitter = 0;
             }
             syncData(); return;
         }
 
-        // Gravity Well Logic (Map 2 Only)
+        // Gravity Well Logic (Map 2)
         if (currentRound === 2) {
             let dx = centerX - puck.x, dy = centerY - puck.y;
             let dist = Math.sqrt(dx*dx + dy*dy);
             if (dist > 5) {
-                let gravityStrength = 0.15;
+                let gravityStrength = 0.12; 
                 puck.dx += (dx / dist) * gravityStrength;
                 puck.dy += (dy / dist) * gravityStrength;
             }
@@ -261,7 +277,7 @@
             let velAlongNormal = relativeVX * nx + relativeVY * ny;
 
             if (velAlongNormal < 0) {
-                let j = -(1 + 1.35) * velAlongNormal;
+                let j = -(1 + 1.25) * velAlongNormal; // Slightly lowered restitution for "natural" feel
                 pk.dx += j * nx; pk.dy += j * ny;
                 let speed = Math.sqrt(pk.dx**2 + pk.dy**2);
                 if (speed > pk.maxSpeed) {
@@ -291,30 +307,30 @@
         const curGoalTop = (currentRound === 3) ? goalY : (canvas.height - goalHeight)/2;
         const curGoalBottom = curGoalTop + goalHeight;
         
-        // Vortex Pipes (Map 1)
+        // Vortex Pipes (Map 1 Accel)
         if (currentRound === 1) {
             const pxStart = centerX - 75, pxEnd = centerX + 75;
             if (puck.y < puck.radius && puck.x > pxStart && puck.x < pxEnd) {
-                puck.dy = 14; puck.y = puck.radius + 5; shakeIntensity = 6;
+                puck.dy = 13; puck.y = puck.radius + 5; shakeIntensity = 6;
             } else if (puck.y > canvas.height - puck.radius && puck.x > pxStart && puck.x < pxEnd) {
-                puck.dy = -14; puck.y = canvas.height - puck.radius - 5; shakeIntensity = 6;
+                puck.dy = -13; puck.y = canvas.height - puck.radius - 5; shakeIntensity = 6;
             }
         }
 
         if (currentRound === 3) {
-            goalY += 5.5 * goalDir;
+            goalY += 5.0 * goalDir;
             if (goalY > canvas.height - goalHeight || goalY < 0) goalDir *= -1;
         }
 
-        if (puck.y < puck.radius) { puck.y = puck.radius; puck.dy *= -0.85; }
-        else if (puck.y > canvas.height - puck.radius) { puck.y = canvas.height - puck.radius; puck.dy *= -0.85; }
+        if (puck.y < puck.radius) { puck.y = puck.radius; puck.dy *= -0.78; }
+        else if (puck.y > canvas.height - puck.radius) { puck.y = canvas.height - puck.radius; puck.dy *= -0.78; }
 
         if (puck.x < puck.radius) {
             if (puck.y > curGoalTop && puck.y < curGoalBottom) triggerGoal(1);
-            else { puck.x = puck.radius; puck.dx *= -0.85; }
+            else { puck.x = puck.radius; puck.dx *= -0.78; }
         } else if (puck.x > canvas.width - puck.radius) {
             if (puck.y > curGoalTop && puck.y < curGoalBottom) triggerGoal(2);
-            else { puck.x = canvas.width - puck.radius; puck.dx *= -0.85; }
+            else { puck.x = canvas.width - puck.radius; puck.dx *= -0.78; }
         }
     }
 
@@ -327,8 +343,8 @@
             else {
                 let normal = Math.atan2(dy, dx), speed = Math.sqrt(puck.dx**2 + puck.dy**2);
                 let reflection = 2 * normal - Math.atan2(puck.dy, puck.dx) + Math.PI;
-                puck.dx = Math.cos(reflection) * speed * 0.85;
-                puck.dy = Math.sin(reflection) * speed * 0.85;
+                puck.dx = Math.cos(reflection) * speed * 0.78;
+                puck.dy = Math.sin(reflection) * speed * 0.78;
                 puck.x = centerX + Math.cos(normal) * (tableRadius - puck.radius - 2);
                 puck.y = centerY + Math.sin(normal) * (tableRadius - puck.radius - 2);
             }
@@ -354,9 +370,18 @@
             overlay.style.display = 'block';
             document.getElementById('winner-text').innerText = isMatchOver ? lastWinnerLabel + " WINS MATCH" : lastWinnerLabel + " WINS PHASE";
             if(isMatchOver) {
-                document.getElementById('stats-ui').style.display = 'block';
-                document.getElementById('rank-p1').innerText = matchStats.p1.rank;
-                document.getElementById('rank-p2').innerText = matchStats.p2.rank;
+                const statsUI = document.getElementById('stats-ui');
+                statsUI.style.display = 'block';
+                const r1 = document.getElementById('rank-p1'), r2 = document.getElementById('rank-p2');
+                r1.innerText = matchStats.p1.rank; r2.innerText = matchStats.p2.rank;
+                r1.className = `rank-letter rank-${matchStats.p1.rank.toLowerCase()}`;
+                r2.className = `rank-letter rank-${matchStats.p2.rank.toLowerCase()}`;
+                document.getElementById('stat-p1-goals').innerText = matchStats.p1.goals;
+                document.getElementById('stat-p2-goals').innerText = matchStats.p2.goals;
+                document.getElementById('stat-p1-saves').innerText = matchStats.p1.saves;
+                document.getElementById('stat-p2-saves').innerText = matchStats.p2.saves;
+                document.getElementById('stat-p1-own').innerText = matchStats.p1.ownGoals;
+                document.getElementById('stat-p2-own').innerText = matchStats.p2.ownGoals;
                 if(isHost) document.getElementById('restart-btn').style.display = 'inline-block';
             }
         } else { overlay.style.display = 'none'; }
@@ -379,9 +404,12 @@
 
     function startNewRound(winner) {
         gameActive = false; lastWinnerLabel = winner; seriesPoints[winner === "PLAYER 1" ? 'p1' : 'p2']++;
-        const isMatchOver = seriesPoints.p1 >= SERIES_TO_WIN || seriesPoints.p2 >= SERIES_TO_WIN;
+        if ((seriesPoints.p1 >= SERIES_TO_WIN || seriesPoints.p2 >= SERIES_TO_WIN) && isHost) {
+            matchStats.p1.rank = calculateGrade('p1');
+            matchStats.p2.rank = calculateGrade('p2');
+        }
         syncData(); updateUI(); 
-        if (!isMatchOver) {
+        if (seriesPoints.p1 < SERIES_TO_WIN && seriesPoints.p2 < SERIES_TO_WIN) {
             setTimeout(() => {
                 scores = {p1:0, p2:0}; currentRound++; gameActive = true; resetPuck(); updateUI();
             }, 3000);
@@ -389,6 +417,7 @@
     }
 
     function resetFullMatch() { location.reload(); }
+    function gameLoop() { update(); draw(); requestAnimationFrame(gameLoop); }
 
     function draw() {
         ctx.save();
@@ -398,7 +427,6 @@
         if (currentRound === 2) {
             ctx.save(); ctx.beginPath(); ctx.arc(centerX, centerY, tableRadius, 0, Math.PI * 2); ctx.clip();
             ctx.fillStyle = '#000'; ctx.fillRect(0,0, canvas.width, canvas.height);
-            // Gravity Well Visual
             let grad = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, tableRadius);
             grad.addColorStop(0, 'rgba(0, 255, 255, 0.1)'); grad.addColorStop(1, 'transparent');
             ctx.fillStyle = grad; ctx.fill(); ctx.restore();
@@ -422,7 +450,6 @@
         ctx.beginPath(); ctx.moveTo(centerX, 0); ctx.lineTo(centerX, canvas.height); ctx.stroke();
         ctx.setLineDash([]); ctx.shadowBlur = 10; ctx.shadowColor = '#fff'; ctx.fillStyle = '#fff';
         ctx.beginPath(); ctx.arc(puck.x, puck.y, puck.radius, 0, Math.PI*2); ctx.fill();
-        
         drawP(p1); drawP(p2);
 
         if (respawnTimer > 0) {
@@ -455,8 +482,6 @@
         isPaused = false; if (isHost) syncData(); else conn.send({ type: 'RESUME' });
         updateUI();
     }
-
-    function gameLoop() { update(); draw(); requestAnimationFrame(gameLoop); }
 </script>
 
 </body>
