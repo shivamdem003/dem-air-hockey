@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Air Hockey - Omni Arena (Full Court AI)</title>
+    <title>Air Hockey - Omni Arena (Multi-Phase AI)</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         body { background: #050505; color: #0ff; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; overflow: hidden; }
@@ -38,17 +38,18 @@
         .rank-c { color: #0084ff; }
         .rank-d { color: #888; }
         #status { color: #0f0; margin-top: 10px; font-size: 0.9rem; font-weight: bold; }
+        input { background: #111; border: 1px solid #444; color: white; padding: 8px; border-radius: 4px; outline: none; width: 180px; }
     </style>
 </head>
 <body>
 
     <div id="menu">
         <div>ID: <strong id="my-id" style="color:white">...</strong></div>
-        <input type="text" id="remote-id" style="background:#111;border:1px solid #444;color:white;padding:8px;border-radius:4px;" placeholder="Friend's ID">
+        <input type="text" id="remote-id" placeholder="Friend's ID">
         <button onclick="connectToFriend()">Connect</button>
         <div style="border-left: 1px solid #333; height: 20px; margin: 0 5px;"></div>
         <select id="difficulty" onchange="updateDifficulty()">
-            <option value="stalker">EASY: STALKER (Full Coverage)</option>
+            <option value="stalker">EASY: STALKER</option>
             <option value="pro" selected>HARD: BALANCED PRO</option>
             <option value="god">INSANE: GOD MODE</option>
         </select>
@@ -229,53 +230,31 @@
         if (shakeIntensity > 0) shakeIntensity *= 0.92;
         if (isPaused || disconnected) return;
 
-        // --- GLOBAL AI LOGIC: ENTIRE COURT SIDE COVERAGE ---
+        // --- ENHANCED AI: COVERS ENTIRE SIDE ---
         if (isOffline && gameActive && respawnTimer === 0) {
             let targetX = 850;
             let targetY = puck.y;
             let currentAiSpeed = 0.22;
-
-            // Define the center line boundary with a small safety buffer
             const AI_MIN_X = centerX + p2.radius + 5;
 
             if (aiDifficulty === "stalker") {
                 currentAiSpeed = 0.18;
-                // Stalker now tracks the puck anywhere on its side
-                if (puck.x > centerX) { 
-                    targetX = puck.x; 
-                    targetY = puck.y; 
-                } else { 
-                    targetX = 920; // Default back to defensive line
-                    targetY = puck.y; 
-                }
-            } 
-            else if (aiDifficulty === "pro" || aiDifficulty === "god") {
+                if (puck.x > centerX) { targetX = puck.x; targetY = puck.y; }
+                else { targetX = 920; targetY = puck.y; }
+            } else if (aiDifficulty === "pro" || aiDifficulty === "god") {
                 const isGod = aiDifficulty === "god";
                 currentAiSpeed = isGod ? 0.85 : 0.23;
-                
-                // Strike threshold is now the center line itself
-                // This makes the AI "hunt" the puck as soon as it crosses
                 if (puck.x > centerX) {
                     targetX = puck.x + (isGod ? 0 : (puck.dx < 0 ? 15 : -15));
                     targetY = puck.y + (puck.dy * (isGod ? 1 : 0.4));
-                } else {
-                    targetX = 850; // Wait at home position
-                    targetY = puck.y;
-                }
+                } else { targetX = 850; targetY = puck.y; }
             }
-
-            // Ensure the target is never across the center line
             targetX = Math.max(AI_MIN_X, targetX);
-
             p2.x += (targetX - p2.x) * currentAiSpeed;
             p2.y += (targetY - p2.y) * currentAiSpeed;
-            
-            // Hard physics constraints for boundaries
             p2.x = Math.max(AI_MIN_X, Math.min(p2.x, canvas.width - p2.radius));
             p2.y = Math.max(p2.radius, Math.min(p2.y, canvas.height - p2.radius));
-            
             if (currentRound === 2) applyCircleConstraint(p2, "right");
-            
             p2.vx = p2.x - p2.lastX; p2.vy = p2.y - p2.lastY;
             p2.lastX = p2.x; p2.lastY = p2.y;
         }
@@ -287,9 +266,10 @@
             if(!isOffline) syncData(); return;
         }
 
+        // PHASE 2 UNIQUE: Gravity Well
         if (currentRound === 2) {
             let dx = centerX - puck.x, dy = centerY - puck.y, dist = Math.sqrt(dx*dx + dy*dy);
-            if (dist > 5) { puck.dx += (dx / dist) * 0.12; puck.dy += (dy / dist) * 0.12; }
+            if (dist > 5) { puck.dx += (dx / dist) * 0.15; puck.dy += (dy / dist) * 0.15; }
         }
 
         puck.x += puck.dx; puck.y += puck.dy;
@@ -314,6 +294,9 @@
             let velAlongNormal = relativeVX * nx + relativeVY * ny;
             if (velAlongNormal < 0) {
                 let j = -(1 + 1.25) * velAlongNormal; pk.dx += j * nx; pk.dy += j * ny;
+                // PHASE 1 UNIQUE: Acceleration Surge
+                let accel = currentRound === 1 ? 1.15 : 1.0;
+                pk.dx *= accel; pk.dy *= accel;
                 let speed = Math.sqrt(pk.dx**2 + pk.dy**2);
                 if (speed > pk.maxSpeed) { pk.dx = (pk.dx / speed) * pk.maxSpeed; pk.dy = (pk.dy / speed) * pk.maxSpeed; }
             }
@@ -332,17 +315,21 @@
     }
 
     function updateRectPhysics() {
+        // PHASE 3 UNIQUE: Moving Goals
         const curGoalTop = (currentRound === 3) ? goalY : (canvas.height - goalHeight)/2;
         const curGoalBottom = curGoalTop + goalHeight;
-        if (currentRound === 3) { goalY += 5.0 * goalDir; if (goalY > canvas.height - goalHeight || goalY < 0) goalDir *= -1; }
-        if (puck.y < puck.radius) { puck.y = puck.radius; puck.dy *= -0.78; }
-        else if (puck.y > canvas.height - puck.radius) { puck.y = canvas.height - puck.radius; puck.dy *= -0.78; }
+        if (currentRound === 3) { goalY += 6.0 * goalDir; if (goalY > canvas.height - goalHeight || goalY < 0) goalDir *= -1; }
+        
+        let bounce = 0.85;
+        if (puck.y < puck.radius) { puck.y = puck.radius; puck.dy *= -bounce; }
+        else if (puck.y > canvas.height - puck.radius) { puck.y = canvas.height - puck.radius; puck.dy *= -bounce; }
+        
         if (puck.x < puck.radius) {
             if (puck.y > curGoalTop && puck.y < curGoalBottom) triggerGoal(1);
-            else { puck.x = puck.radius; puck.dx *= -0.78; }
+            else { puck.x = puck.radius; puck.dx *= -bounce; }
         } else if (puck.x > canvas.width - puck.radius) {
             if (puck.y > curGoalTop && puck.y < curGoalBottom) triggerGoal(2);
-            else { puck.x = canvas.width - puck.radius; puck.dx *= -0.78; }
+            else { puck.x = canvas.width - puck.radius; puck.dx *= -bounce; }
         }
     }
 
@@ -354,7 +341,7 @@
             else if (Math.abs(deg) > 158) triggerGoal(1);
             else {
                 let reflection = 2 * normal - Math.atan2(puck.dy, puck.dx) + Math.PI;
-                puck.dx = Math.cos(reflection) * speed * 0.78; puck.dy = Math.sin(reflection) * speed * 0.78;
+                puck.dx = Math.cos(reflection) * speed * 0.8; puck.dy = Math.sin(reflection) * speed * 0.8;
                 puck.x = centerX + Math.cos(normal) * (tableRadius - puck.radius - 2); puck.y = centerY + Math.sin(normal) * (tableRadius - puck.radius - 2);
             }
         }
