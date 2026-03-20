@@ -2,58 +2,61 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Air Hockey - Omni Arena (Multi-Phase AI)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Air Hockey - Pro Gravity Colosseum</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         body { background: #050505; color: #0ff; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; overflow: hidden; }
         #menu { margin-bottom: 10px; background: #1a1a1a; padding: 12px; border-radius: 12px; border: 1px solid #333; display: flex; gap: 15px; align-items: center; z-index: 10; }
-        canvas { border: 2px solid #222; background: #000; cursor: none; box-shadow: 0 0 30px rgba(0,255,255,0.05); }
+        canvas { border: 2px solid #222; background: #000; cursor: none; box-shadow: 0 0 30px rgba(0,255,255,0.05); touch-action: none; }
         .hud { display: flex; justify-content: space-between; width: 1000px; align-items: center; margin-bottom: 20px; }
         .score { font-size: 2.8rem; font-weight: bold; text-shadow: 0 0 10px #0ff; min-width: 80px; text-align: center; }
         .series-dots { font-size: 1.5rem; letter-spacing: 5px; color: #333; }
         .series-dots .won { color: #0ff; text-shadow: 0 0 8px #0ff; }
-        .series-dots.p2 { color: #f0f; text-shadow: 0 0 8px #f0f; }
+        .series-dots.p2 .won { color: #f0f; text-shadow: 0 0 8px #f0f; }
         
-        .round-display { text-align: center; color: #ccc; background: rgba(255,255,255,0.03); padding: 12px 50px; border-radius: 15px; border: 1px solid #333; min-width: 320px; }
-        #round-label { font-size: 0.9rem; letter-spacing: 3px; color: #888; text-transform: uppercase; margin-bottom: 4px; }
-        #table-type { display: block; font-size: 1.8rem; font-weight: 900; color: #fff; text-shadow: 0 0 15px rgba(255,255,255,0.3); letter-spacing: 1px; text-transform: uppercase; }
+        .round-display { text-align: center; color: #ccc; background: rgba(255,255,255,0.03); padding: 12px 50px; border-radius: 15px; border: 1px solid #333; min-width: 300px; }
+        #round-label { font-size: 1rem; letter-spacing: 3px; color: #888; text-transform: uppercase; margin-bottom: 4px; }
+        #table-type { display: block; font-size: 2rem; font-weight: 900; color: #fff; text-shadow: 0 0 15px rgba(255,255,255,0.3); letter-spacing: 1px; text-transform: uppercase; }
 
         button { background: #0ff; border: none; padding: 8px 18px; cursor: pointer; font-weight: bold; border-radius: 4px; transition: 0.2s; color: #000; text-transform: uppercase; }
         button:hover:not(:disabled) { background: #fff; transform: translateY(-1px); }
         button:disabled { background: #222; color: #444; cursor: not-allowed; }
         
-        select { background: #111; color: #0ff; border: 1px solid #444; padding: 7px; border-radius: 4px; outline: none; cursor: pointer; font-weight: bold; }
+        #pause-btn { background: #ffaa00; }
+        .pause-count { font-size: 0.8rem; color: #888; margin-left: 5px; }
+
+        input { background: #111; border: 1px solid #444; color: white; padding: 8px; border-radius: 4px; outline: none; width: 180px; }
+        
         #overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.96); padding: 40px; border-radius: 20px; text-align: center; border: 2px solid #0ff; display: none; z-index: 100; min-width: 500px; }
+        
         .stats-container { margin-top: 20px; width: 100%; border-top: 1px solid #333; padding-top: 20px; }
         .stats-grid { display: grid; grid-template-columns: 1fr 1.5fr 1fr; gap: 10px; align-items: center; }
         .stat-label { color: #888; font-size: 0.8rem; text-transform: uppercase; }
         .stat-val { font-size: 1.4rem; font-weight: bold; color: #fff; }
         .p1-stat { color: #0ff !important; }
         .p2-stat { color: #f0f !important; }
+
+        .rank-box { margin-bottom: 15px; }
         .rank-letter { font-size: 4rem; font-weight: 900; line-height: 1; margin: 5px 0; }
         .rank-s { color: #ffdf00; text-shadow: 0 0 25px rgba(255,223,0,0.8); }
         .rank-a { color: #ff4e00; text-shadow: 0 0 15px rgba(255,78,0,0.5); }
         .rank-b { color: #00ff00; }
         .rank-c { color: #0084ff; }
         .rank-d { color: #888; }
-        #status { color: #0f0; margin-top: 10px; font-size: 0.9rem; font-weight: bold; }
-        input { background: #111; border: 1px solid #444; color: white; padding: 8px; border-radius: 4px; outline: none; width: 180px; }
+
+        #status { color: #555; margin-top: 10px; font-size: 0.9rem; }
     </style>
 </head>
 <body>
 
     <div id="menu">
         <div>ID: <strong id="my-id" style="color:white">...</strong></div>
-        <input type="text" id="remote-id" placeholder="Friend's ID">
+        <input type="text" id="remote-id" placeholder="Paste Friend's ID">
         <button onclick="connectToFriend()">Connect</button>
         <div style="border-left: 1px solid #333; height: 20px; margin: 0 5px;"></div>
-        <select id="difficulty" onchange="updateDifficulty()">
-            <option value="stalker">EASY: STALKER</option>
-            <option value="pro" selected>HARD: BALANCED PRO</option>
-            <option value="god">INSANE: GOD MODE</option>
-        </select>
-        <button id="pause-btn" style="background:#ffaa00;" onclick="requestPause()">Pause</button>
+        <button id="pause-btn" onclick="requestPause()">Pause Game</button>
+        <div class="pause-count">Pauses: <span id="p1-pauses">4</span> | <span id="p2-pauses">4</span></div>
     </div>
 
     <div class="hud">
@@ -63,8 +66,8 @@
         </div>
         
         <div class="round-display">
-            <div id="round-label"><b>PHASE <span id="round-num">1</span></b></div>
-            <span id="table-type">ACCELERATION SURGE</span>
+            <div id="round-label"><b>ROUND <span id="round-num">1</span></b></div>
+            <span id="table-type">VELOCITY SURGE</span>
         </div>
 
         <div style="display: flex; flex-direction: column; align-items: center;">
@@ -74,11 +77,11 @@
     </div>
 
     <canvas id="gameCanvas" width="1000" height="600"></canvas>
-    <div id="status">PRACTICE MODE ACTIVE</div>
+    <div id="status">Waiting for connection...</div>
 
     <div id="overlay">
         <h1 id="winner-text" style="margin:0; font-size: 2.2rem;">-</h1>
-        <p id="sub-text" style="color: #888; font-size: 1rem; margin-top: 5px;">Match Analysis Complete</p>
+        <p id="sub-text" style="color: #888; font-size: 1rem; margin-top: 5px;">Preparing arena...</p>
         
         <div id="stats-ui" class="stats-container" style="display:none;">
             <div class="stats-grid">
@@ -91,12 +94,15 @@
                     <div class="stat-label">Rank</div>
                     <div class="rank-letter" id="rank-p2">-</div>
                 </div>
+
                 <div class="stat-val p1-stat" id="stat-p1-goals">0</div>
                 <div class="stat-label">Total Goals</div>
                 <div class="stat-val p2-stat" id="stat-p2-goals">0</div>
+
                 <div class="stat-val p1-stat" id="stat-p1-saves">0</div>
                 <div class="stat-label">Critical Saves</div>
                 <div class="stat-val p2-stat" id="stat-p2-saves">0</div>
+
                 <div class="stat-val p1-stat" id="stat-p1-own">0</div>
                 <div class="stat-label">Own Goals</div>
                 <div class="stat-val p2-stat" id="stat-p2-own">0</div>
@@ -114,49 +120,49 @@
     const ctx = canvas.getContext('2d');
     const peer = new Peer(); 
     let conn;
-    let isHost = true, isOffline = true, gameActive = true, isPaused = false, disconnected = false;
-    let aiDifficulty = "pro";
+    let isHost = false, gameActive = true, isPaused = false, disconnected = false;
+
+    // --- PHYSICS CONSTANTS ---
+    const PUCK_FRICTION_HIGH = 0.996;
+    const PUCK_FRICTION_LOW = 0.985;
+    const WALL_BOUNCE = 0.92;
+    const MAX_SPEED = 24;
+    const TANGENT_INFLUENCE = 0.35;
 
     const centerX = 500, centerY = 300, tableRadius = 280, cornerRadius = 45, goalHeight = 160;
     const WIN_SCORE = 13, SERIES_TO_WIN = 2;
-    const MAP_NAMES = ["ACCELERATION SURGE", "GRAVITY WELL", "SHIFTING VORTEX"];
     
     let currentRound = 1, lastWinnerLabel = "", shakeIntensity = 0; 
     let scores = { p1: 0, p2: 0 }, seriesPoints = { p1: 0, p2: 0 }, pausesLeft = { p1: 4, p2: 4 };
     let respawnTimer = 0, lastHitter = 0;
-    let puckTrail = [], plateFlash = 0;
 
     let matchStats = {
         p1: { goals: 0, saves: 0, ownGoals: 0, totalHits: 0, rank: "C" },
         p2: { goals: 0, saves: 0, ownGoals: 0, totalHits: 0, rank: "C" }
     };
 
-    const puck = { x: 500, y: 300, dx: 0, dy: 0, radius: 15, friction: 0.988, maxSpeed: 18 };
-    const p1 = { x: 150, y: 300, vx: 0, vy: 0, lastX: 150, lastY: 300, radius: 32, color: '#0ff' };
-    const p2 = { x: 850, y: 300, vx: 0, vy: 0, lastX: 850, lastY: 300, radius: 32, color: '#f0f' };
+    const puck = { x: 500, y: 300, dx: 0, dy: 0, radius: 15, mass: 1 };
+    const p1 = { x: 150, y: 300, vx: 0, vy: 0, radius: 32, color: '#0ff' };
+    const p2 = { x: 850, y: 300, vx: 0, vy: 0, radius: 32, color: '#f0f' };
     let goalY = (canvas.height - goalHeight) / 2, goalDir = 1;
 
-    window.onload = () => { resetPuck(); gameLoop(); };
-
+    // Multiplayer setup
     peer.on('open', id => document.getElementById('my-id').innerText = id);
-    peer.on('connection', c => { conn = c; isHost = true; isOffline = false; setupConnection(); });
-
-    function updateDifficulty() { aiDifficulty = document.getElementById('difficulty').value; }
+    peer.on('connection', c => { conn = c; isHost = true; setupConnection(); });
 
     function connectToFriend() {
-        const id = document.getElementById('remote-id').value;
-        if(!id) return;
-        conn = peer.connect(id); isHost = false; isOffline = false; setupConnection();
+        conn = peer.connect(document.getElementById('remote-id').value);
+        isHost = false; setupConnection();
     }
 
     function setupConnection() {
         conn.on('open', () => {
             document.getElementById('status').innerText = "LINK ESTABLISHED";
-            document.getElementById('status').style.color = "#0ff";
-            document.getElementById('difficulty').disabled = true;
             disconnected = false; if(isHost) resetPuck();
+            gameLoop();
         });
         conn.on('close', () => handleDisconnection());
+        conn.on('error', () => handleDisconnection());
         conn.on('data', data => {
             if (data.type === 'PAUSE_REQ') handlePauseRequest(data.player);
             else if (data.type === 'RESUME') { isPaused = false; updateUI(); }
@@ -165,46 +171,39 @@
                 p2.x = data.x; p2.y = data.y;
             } else {
                 p1.x = data.p1.x; p1.y = data.p1.y; puck.x = data.puck.x; puck.y = data.puck.y;
-                puck.dx = data.puck.dx; puck.dy = data.puck.dy;
                 scores = data.scores; seriesPoints = data.series; pausesLeft = data.pausesLeft;
                 currentRound = data.round; gameActive = data.gameActive; isPaused = data.isPaused;
                 matchStats = data.stats; goalY = data.goalY; respawnTimer = data.respawnTimer;
-                lastWinnerLabel = data.lastWinnerLabel; updateUI();
+                lastWinnerLabel = data.lastWinnerLabel; 
+                if (respawnTimer >= 158) shakeIntensity = 12;
+                updateUI();
             }
         });
-    }
-
-    function handleDisconnection() {
-        if (disconnected) return;
-        disconnected = true; gameActive = false; isPaused = false; updateUI();
-        document.getElementById('overlay').style.display = 'block';
-        document.getElementById('winner-text').innerText = "CONNECTION LOST";
-        document.getElementById('restart-btn').style.display = 'inline-block';
     }
 
     function handleInput(e) {
         if (!gameActive || isPaused || disconnected) return;
         const rect = canvas.getBoundingClientRect();
-        const pos = {
-            x: (e.clientX || (e.touches ? e.touches[0].clientX : 0)) - rect.left,
-            y: (e.clientY || (e.touches ? e.touches[0].clientY : 0)) - rect.top
-        };
-        if (isHost || isOffline) {
-            p1.x = Math.max(p1.radius, Math.min(pos.x, centerX - p1.radius - 3));
-            p1.y = Math.max(p1.radius, Math.min(pos.y, canvas.height - p1.radius));
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        const pos = { x: clientX - rect.left, y: clientY - rect.top };
+
+        if (isHost) {
+            p1.vx = pos.x - p1.x; p1.vy = pos.y - p1.y;
+            p1.x = Math.min(pos.x, canvas.width/2 - p1.radius);
+            p1.y = Math.max(p1.radius, Math.min(canvas.height - p1.radius, pos.y));
             if (currentRound === 2) applyCircleConstraint(p1, "left");
-            p1.vx = p1.x - p1.lastX; p1.vy = p1.y - p1.lastY;
-            p1.lastX = p1.x; p1.lastY = p1.y;
         } else {
-            p2.x = Math.max(centerX + p2.radius + 3, Math.min(pos.x, canvas.width - p2.radius));
-            p2.y = Math.max(p2.radius, Math.min(pos.y, canvas.height - p2.radius));
+            p2.vx = pos.x - p2.x; p2.vy = pos.y - p2.y;
+            p2.x = Math.max(pos.x, canvas.width/2 + p2.radius);
+            p2.y = Math.max(p2.radius, Math.min(canvas.height - p2.radius, pos.y));
             if (currentRound === 2) applyCircleConstraint(p2, "right");
             if (conn && conn.open) conn.send({ x: p2.x, y: p2.y });
         }
     }
 
     canvas.addEventListener('mousemove', handleInput);
-    canvas.addEventListener('touchmove', e => { e.preventDefault(); handleInput(e); }, {passive:false});
+    canvas.addEventListener('touchmove', (e) => { e.preventDefault(); handleInput(e); }, { passive: false });
 
     function applyCircleConstraint(p, side) {
         let dx = p.x - centerX, dy = p.y - centerY, dist = Math.sqrt(dx*dx + dy*dy);
@@ -213,198 +212,200 @@
             p.x = centerX + Math.cos(angle) * (tableRadius - p.radius);
             p.y = centerY + Math.sin(angle) * (tableRadius - p.radius);
         }
-        p.x = (side === "left") ? Math.min(p.x, centerX - p.radius - 3) : Math.max(p.x, centerX + p.radius + 3);
-    }
-
-    function calculateGrade(pKey) {
-        const s = matchStats[pKey];
-        const isWinner = seriesPoints[pKey] >= SERIES_TO_WIN;
-        const totalScore = Math.max(0, (s.totalHits > 0 ? (s.goals / s.totalHits) * 600 : 0) + (s.saves * 35) + (s.goals * 45) + (isWinner ? 200 : 0) - (s.ownGoals * 80));
-        if (totalScore >= 950) return "S";
-        if (totalScore >= 700) return "A";
-        if (totalScore >= 450) return "B";
-        if (totalScore >= 250) return "C";
-        return "D";
+        p.x = (side === "left") ? Math.min(p.x, centerX - 5) : Math.max(p.x, centerX + 5);
     }
 
     function update() {
         if (shakeIntensity > 0) shakeIntensity *= 0.92;
-        if (plateFlash > 0) plateFlash -= 5;
         if (isPaused || disconnected) return;
+        if (!isHost || !gameActive) return;
 
-        if (isOffline && gameActive && respawnTimer === 0) {
-            let targetX = 850;
-            let targetY = puck.y;
-            let currentAiSpeed = 0.22;
-            const AI_MIN_X = centerX + p2.radius + 5;
-
-            if (aiDifficulty === "stalker") {
-                currentAiSpeed = 0.18;
-                if (puck.x > centerX) { targetX = puck.x; targetY = puck.y; }
-                else { targetX = 920; targetY = puck.y; }
-            } else if (aiDifficulty === "pro" || aiDifficulty === "god") {
-                const isGod = aiDifficulty === "god";
-                currentAiSpeed = isGod ? 0.85 : 0.23;
-                if (puck.x > centerX) {
-                    targetX = puck.x + (isGod ? 0 : (puck.dx < 0 ? 15 : -15));
-                    targetY = puck.y + (puck.dy * (isGod ? 1 : 0.4));
-                } else { targetX = 850; targetY = puck.y; }
-            }
-            targetX = Math.max(AI_MIN_X, targetX);
-            p2.x += (targetX - p2.x) * currentAiSpeed;
-            p2.y += (targetY - p2.y) * currentAiSpeed;
-            p2.x = Math.max(AI_MIN_X, Math.min(p2.x, canvas.width - p2.radius));
-            p2.y = Math.max(p2.radius, Math.min(p2.y, canvas.height - p2.radius));
-            if (currentRound === 2) applyCircleConstraint(p2, "right");
-            p2.vx = p2.x - p2.lastX; p2.vy = p2.y - p2.lastY;
-            p2.lastX = p2.x; p2.lastY = p2.y;
-        }
-
-        if (!isHost && !isOffline) return;
         if (respawnTimer > 0) {
             respawnTimer--;
-            if (respawnTimer === 0) { puck.dx = (Math.random() > 0.5 ? 3 : -3); puck.dy = (Math.random() - 0.5) * 5; lastHitter = 0; }
-            if(!isOffline) syncData(); return;
+            if (respawnTimer === 0) {
+                puck.dx = (Math.random() > 0.5 ? 4 : -4);
+                puck.dy = (Math.random() - 0.5) * 6;
+                lastHitter = 0;
+            }
+            syncData(); return;
         }
 
-        if (currentRound === 2) {
-            let dx = centerX - puck.x, dy = centerY - puck.y, dist = Math.sqrt(dx*dx + dy*dy);
-            if (dist > 5) { puck.dx += (dx / dist) * 0.15; puck.dy += (dy / dist) * 0.15; }
-        }
-
+        let speed = Math.sqrt(puck.dx**2 + puck.dy**2);
+        let friction = speed > 5 ? PUCK_FRICTION_HIGH : PUCK_FRICTION_LOW;
+        
         puck.x += puck.dx; puck.y += puck.dy;
-        puck.dx *= puck.friction; puck.dy *= puck.friction;
-
-        // Trail logic
-        if (Math.abs(puck.dx) > 10 || Math.abs(puck.dy) > 10) {
-            puckTrail.push({x: puck.x, y: puck.y, life: 1.0});
-        }
-        puckTrail.forEach(t => t.life -= 0.05);
-        puckTrail = puckTrail.filter(t => t.life > 0);
+        puck.dx *= friction; puck.dy *= friction;
 
         if (currentRound === 2) updateCirclePhysics();
         else updateRectPhysics();
 
-        checkCollision(p1, puck, 1); checkCollision(p2, puck, 2);
-        updateUI(); if(!isOffline) syncData();
+        checkCollision(p1, puck, 1);
+        checkCollision(p2, puck, 2);
+        updateUI(); syncData();
     }
 
     function checkCollision(paddle, pk, pNum) {
         let dx = pk.x - paddle.x, dy = pk.y - paddle.y, dist = Math.sqrt(dx*dx + dy*dy);
-        let minDist = paddle.radius + pk.radius;
-        if (dist < minDist) {
+        if (dist < paddle.radius + pk.radius) {
             matchStats['p' + pNum].totalHits++;
-            let nx = dx / dist, ny = dy / dist;
-            let overlap = minDist - dist;
-            pk.x += nx * (overlap + 1); pk.y += ny * (overlap + 1);
-            let relativeVX = pk.dx - (paddle.vx || 0), relativeVY = pk.dy - (paddle.vy || 0);
-            let velAlongNormal = relativeVX * nx + relativeVY * ny;
-            if (velAlongNormal < 0) {
-                let j = -(1 + 1.25) * velAlongNormal; pk.dx += j * nx; pk.dy += j * ny;
-                let accel = currentRound === 1 ? 1.15 : 1.0;
-                pk.dx *= accel; pk.dy *= accel;
-                let speed = Math.sqrt(pk.dx**2 + pk.dy**2);
-                if (speed > pk.maxSpeed) { pk.dx = (pk.dx / speed) * pk.maxSpeed; pk.dy = (pk.dy / speed) * pk.maxSpeed; }
-            }
-            lastHitter = pNum;
             if ((pNum === 1 && pk.dx < 0) || (pNum === 2 && pk.dx > 0)) matchStats['p' + pNum].saves++;
+            lastHitter = pNum;
+
+            let nx = dx / dist, ny = dy / dist;
+            let relVelX = pk.dx - (paddle.vx || 0), relVelY = pk.dy - (paddle.vy || 0);
+            let velAlongNormal = relVelX * nx + relVelY * ny;
+
+            if (velAlongNormal > 0) return;
+
+            let restitution = 1.25;
+            let j = -(1 + restitution) * velAlongNormal;
+            pk.dx += (j * nx) + (paddle.vx || 0) * TANGENT_INFLUENCE;
+            pk.dy += (j * ny) + (paddle.vy || 0) * TANGENT_INFLUENCE;
+
+            let overlap = (paddle.radius + pk.radius) - dist;
+            pk.x += nx * (overlap + 1); pk.y += ny * (overlap + 1);
+
+            let s = Math.sqrt(pk.dx**2 + pk.dy**2);
+            if (s > MAX_SPEED) { pk.dx = (pk.dx/s)*MAX_SPEED; pk.dy = (pk.dy/s)*MAX_SPEED; }
         }
-    }
-
-    function syncData() { if (conn && conn.open && isHost) conn.send({ p1, puck, scores, series: seriesPoints, pausesLeft, round: currentRound, gameActive, isPaused, goalY, respawnTimer, lastWinnerLabel, stats: matchStats }); }
-
-    function triggerGoal(scoredOnPlayer) {
-        if (scoredOnPlayer === 1) scores.p2++; else scores.p1++;
-        if (lastHitter === scoredOnPlayer) matchStats['p'+scoredOnPlayer].ownGoals++;
-        else if (lastHitter !== 0) matchStats['p'+(3-scoredOnPlayer)].goals++;
-        shakeIntensity = 15; resetPuck();
-        puckTrail = [];
     }
 
     function updateRectPhysics() {
         const curGoalTop = (currentRound === 3) ? goalY : (canvas.height - goalHeight)/2;
         const curGoalBottom = curGoalTop + goalHeight;
-        if (currentRound === 3) { goalY += 6.0 * goalDir; if (goalY > canvas.height - goalHeight || goalY < 0) goalDir *= -1; }
-        
-        let bounce = 0.85;
 
-        // --- FIXED PHASE 1 ACCELERATION PLATES ---
         if (currentRound === 1) {
-            // Check if puck is horizontally within the plate range (400 to 600)
-            if (puck.x > 400 && puck.x < 600) {
-                // Check if puck hit Top Plate (y near 0) or Bottom Plate (y near 600)
-                if (puck.y < puck.radius + 15 || puck.y > canvas.height - puck.radius - 15) {
-                    
-                    if (lastHitter !== 0) {
-                        plateFlash = 100; // Visual flash trigger
-                        shakeIntensity = 12;
-                        
-                        // Force a reflection in Y
-                        puck.dy *= -1.2; 
-                        
-                        // Apply 2x speed based on maxSpeed
-                        const launchSpeed = puck.maxSpeed * 2.1;
-                        
-                        // Launch towards opponent
-                        if (lastHitter === 1) {
-                            puck.dx = launchSpeed; // Hit by P1? Fly towards P2
-                        } else if (lastHitter === 2) {
-                            puck.dx = -launchSpeed; // Hit by P2? Fly towards P1
-                        }
-                        
-                        // Ensure it doesn't get stuck inside the plate
-                        if (puck.y < 300) puck.y = puck.radius + 16;
-                        else puck.y = canvas.height - puck.radius - 16;
-                    }
-                }
+            const pxStart = centerX - 75, pxEnd = centerX + 75;
+            if (puck.x > pxStart && puck.x < pxEnd) {
+                if (puck.y < puck.radius + 5) { puck.dy = 14; puck.dx *= 0.5; }
+                if (puck.y > canvas.height - (puck.radius + 5)) { puck.dy = -14; puck.dx *= 0.5; }
             }
         }
-        
-        if (puck.y < puck.radius) { puck.y = puck.radius; puck.dy *= -bounce; }
-        else if (puck.y > canvas.height - puck.radius) { puck.y = canvas.height - puck.radius; puck.dy *= -bounce; }
-        
+
+        if (currentRound === 3) {
+            goalY += 5.5 * goalDir;
+            if (goalY > canvas.height - goalHeight || goalY < 0) goalDir *= -1;
+        }
+
         if (puck.x < puck.radius) {
             if (puck.y > curGoalTop && puck.y < curGoalBottom) triggerGoal(1);
-            else { puck.x = puck.radius; puck.dx *= -bounce; }
+            else { puck.x = puck.radius; puck.dx = Math.abs(puck.dx) * WALL_BOUNCE; }
         } else if (puck.x > canvas.width - puck.radius) {
             if (puck.y > curGoalTop && puck.y < curGoalBottom) triggerGoal(2);
-            else { puck.x = canvas.width - puck.radius; puck.dx *= -bounce; }
+            else { puck.x = canvas.width - puck.radius; puck.dx = -Math.abs(puck.dx) * WALL_BOUNCE; }
         }
+
+        if (puck.y < puck.radius) { puck.y = puck.radius; puck.dy = Math.abs(puck.dy) * WALL_BOUNCE; }
+        else if (puck.y > canvas.height - puck.radius) { puck.y = canvas.height - puck.radius; puck.dy = -Math.abs(puck.dy) * WALL_BOUNCE; }
     }
 
     function updateCirclePhysics() {
         let dx = puck.x - centerX, dy = puck.y - centerY, dist = Math.sqrt(dx*dx + dy*dy);
+        if (dist < 220) { puck.dx -= dx * 0.0006; puck.dy -= dy * 0.0006; }
+
         if (dist > tableRadius - puck.radius) {
-            let normal = Math.atan2(dy, dx), speed = Math.sqrt(puck.dx**2 + puck.dy**2), deg = normal * (180 / Math.PI);
+            let angle = Math.atan2(dy, dx), deg = angle * (180 / Math.PI);
             if (Math.abs(deg) < 22) triggerGoal(2);
             else if (Math.abs(deg) > 158) triggerGoal(1);
             else {
-                let reflection = 2 * normal - Math.atan2(puck.dy, puck.dx) + Math.PI;
-                puck.dx = Math.cos(reflection) * speed * 0.8; puck.dy = Math.sin(reflection) * speed * 0.8;
-                puck.x = centerX + Math.cos(normal) * (tableRadius - puck.radius - 2); puck.y = centerY + Math.sin(normal) * (tableRadius - puck.radius - 2);
+                let nx = dx / dist, ny = dy / dist;
+                let dot = puck.dx * nx + puck.dy * ny;
+                puck.dx = (puck.dx - 2 * dot * nx) * WALL_BOUNCE;
+                puck.dy = (puck.dy - 2 * dot * ny) * WALL_BOUNCE;
+                puck.x = centerX + nx * (tableRadius - puck.radius - 1);
+                puck.y = centerY + ny * (tableRadius - puck.radius - 1);
             }
         }
     }
 
-    function updateUI() {
-        document.getElementById('s1').innerText = scores.p1; document.getElementById('s2').innerText = scores.p2;
-        document.getElementById('round-num').innerText = currentRound; document.getElementById('table-type').innerText = MAP_NAMES[currentRound-1];
+    function triggerGoal(scoredOnPlayer) {
+        if (scoredOnPlayer === 1) {
+            scores.p2++;
+            if (lastHitter === 1) matchStats.p1.ownGoals++;
+            else if (lastHitter === 2) matchStats.p2.goals++;
+        } else {
+            scores.p1++;
+            if (lastHitter === 2) matchStats.p2.ownGoals++;
+            else if (lastHitter === 1) matchStats.p1.goals++;
+        }
+        shakeIntensity = 15; resetPuck();
+    }
+
+    function resetPuck() {
+        puck.x = centerX; puck.y = centerY; puck.dx = 0; puck.dy = 0;
+        if(isHost) {
+            if (scores.p1 >= WIN_SCORE) startNewRound("PLAYER 1");
+            else if (scores.p2 >= WIN_SCORE) startNewRound("PLAYER 2");
+            else respawnTimer = 160;
+        }
+    }
+
+    function startNewRound(winner) {
+        gameActive = false; lastWinnerLabel = winner; seriesPoints[winner === "PLAYER 1" ? 'p1' : 'p2']++;
         const isMatchOver = seriesPoints.p1 >= SERIES_TO_WIN || seriesPoints.p2 >= SERIES_TO_WIN;
-        const overlay = document.getElementById('overlay');
-        if (isPaused) { overlay.style.display = 'block'; document.getElementById('winner-text').innerText = "PAUSED"; document.getElementById('resume-btn').style.display = 'inline-block'; }
-        else if (!gameActive) {
-            overlay.style.display = 'block'; document.getElementById('winner-text').innerText = isMatchOver ? lastWinnerLabel + " WINS MATCH" : lastWinnerLabel + " WINS PHASE";
-            if(isMatchOver) {
-                document.getElementById('stats-ui').style.display = 'block';
-                const r1 = document.getElementById('rank-p1'), r2 = document.getElementById('rank-p2');
-                r1.innerText = matchStats.p1.rank; r2.innerText = matchStats.p2.rank;
-                r1.className = `rank-letter rank-${matchStats.p1.rank.toLowerCase()}`; r2.className = `rank-letter rank-${matchStats.p2.rank.toLowerCase()}`;
-                document.getElementById('stat-p1-goals').innerText = matchStats.p1.goals; document.getElementById('stat-p2-goals').innerText = matchStats.p2.goals;
-                document.getElementById('stat-p1-saves').innerText = matchStats.p1.saves; document.getElementById('stat-p2-saves').innerText = matchStats.p2.saves;
-                document.getElementById('stat-p1-own').innerText = matchStats.p1.ownGoals; document.getElementById('stat-p2-own').innerText = matchStats.p2.ownGoals;
-                if(isHost || isOffline) document.getElementById('restart-btn').style.display = 'inline-block';
+        if (isMatchOver && isHost) {
+            matchStats.p1.rank = calculateGrade('p1');
+            matchStats.p2.rank = calculateGrade('p2');
+        }
+        updateUI(); syncData(); 
+        if (!isMatchOver) {
+            setTimeout(() => {
+                if (disconnected) return;
+                scores = {p1:0, p2:0}; currentRound++; gameActive = true; resetPuck(); updateUI();
+            }, 3000);
+        }
+    }
+
+    function calculateGrade(pKey) {
+        const s = matchStats[pKey];
+        const accuracy = s.totalHits > 0 ? (s.goals / s.totalHits) : 0;
+        let score = (s.goals * 25) + (s.saves * 15) - (s.ownGoals * 50) + (accuracy * 120);
+        if (seriesPoints[pKey] >= SERIES_TO_WIN) score += 100;
+        if (score >= 650) return "S";
+        if (score >= 480) return "A";
+        if (score >= 320) return "B";
+        if (score >= 150) return "C";
+        return "D";
+    }
+
+    function syncData() {
+        if (conn && conn.open && isHost) {
+            conn.send({ p1, puck, scores, series: seriesPoints, pausesLeft, round: currentRound, gameActive, isPaused, goalY, respawnTimer, lastWinnerLabel, stats: matchStats });
+        }
+    }
+
+    function updateUI() {
+        document.getElementById('s1').innerText = scores.p1;
+        document.getElementById('s2').innerText = scores.p2;
+        document.getElementById('round-num').innerText = currentRound;
+        document.getElementById('p1-pauses').innerText = pausesLeft.p1;
+        document.getElementById('p2-pauses').innerText = pausesLeft.p2;
+        document.getElementById('table-type').innerText = currentRound === 1 ? "VELOCITY SURGE" : currentRound === 2 ? "GRAVITY WELL" : "SHIFTING VOID";
+        
+        const isMatchOver = seriesPoints.p1 >= SERIES_TO_WIN || seriesPoints.p2 >= SERIES_TO_WIN;
+        const overlay = document.getElementById('overlay'), statsUI = document.getElementById('stats-ui');
+
+        if (isPaused) {
+            overlay.style.display = 'block';
+            document.getElementById('winner-text').innerText = "GAME PAUSED";
+            document.getElementById('resume-btn').style.display = 'inline-block';
+        } else if (!gameActive) {
+            overlay.style.display = 'block';
+            document.getElementById('winner-text').innerText = isMatchOver ? lastWinnerLabel + " VICTORIOUS" : lastWinnerLabel + " ROUND WIN";
+            if (isMatchOver) {
+                statsUI.style.display = 'block';
+                ['p1', 'p2'].forEach(p => {
+                    const r = document.getElementById(`rank-${p}`);
+                    r.innerText = matchStats[p].rank;
+                    r.className = `rank-letter rank-${matchStats[p].rank.toLowerCase()}`;
+                    document.getElementById(`stat-${p}-goals`).innerText = matchStats[p].goals;
+                    document.getElementById(`stat-${p}-saves`).innerText = matchStats[p].saves;
+                    document.getElementById(`stat-${p}-own`).innerText = matchStats[p].ownGoals;
+                });
+                if(isHost) document.getElementById('restart-btn').style.display = 'inline-block';
             }
-        } else overlay.style.display = 'none';
+        } else { overlay.style.display = 'none'; }
+        
         const renderDots = (id, pts) => {
             let dots = ""; for(let i=0; i<SERIES_TO_WIN; i++) dots += `<span class="${i < pts ? 'won' : ''}">●</span> `;
             document.getElementById(id).innerHTML = dots;
@@ -412,44 +413,53 @@
         renderDots('series-p1', seriesPoints.p1); renderDots('series-p2', seriesPoints.p2);
     }
 
-    function resetPuck() {
-        puck.x = centerX; puck.y = centerY; puck.dx = 0; puck.dy = 0;
-        if(isHost || isOffline) {
-            if (scores.p1 >= WIN_SCORE) startNewRound("PLAYER 1"); else if (scores.p2 >= WIN_SCORE) startNewRound("PLAYER 2"); else respawnTimer = 160;
-        }
-    }
-
-    function startNewRound(winner) {
-        gameActive = false; lastWinnerLabel = winner; seriesPoints[winner === "PLAYER 1" ? 'p1' : 'p2']++;
-        const isMatchOver = seriesPoints.p1 >= SERIES_TO_WIN || seriesPoints.p2 >= SERIES_TO_WIN;
-        if (isMatchOver && (isHost || isOffline)) { matchStats.p1.rank = calculateGrade('p1'); matchStats.p2.rank = calculateGrade('p2'); }
-        if(!isOffline) syncData(); updateUI(); 
-        if (!isMatchOver) setTimeout(() => { if (disconnected) return; scores = {p1:0, p2:0}; currentRound++; gameActive = true; resetPuck(); updateUI(); }, 3000);
-    }
-
-    function resetFullMatch() { location.reload(); }
-
     function draw() {
-        ctx.save(); if (shakeIntensity > 0.5) ctx.translate((Math.random()-0.5)*shakeIntensity, (Math.random()-0.5)*shakeIntensity);
+        ctx.save();
+        if (shakeIntensity > 0.5) ctx.translate((Math.random()-0.5)*shakeIntensity, (Math.random()-0.5)*shakeIntensity);
         ctx.fillStyle = '#050505'; ctx.fillRect(-20, -20, canvas.width+40, canvas.height+40);
         
         if (currentRound === 2) {
             ctx.save(); ctx.beginPath(); ctx.arc(centerX, centerY, tableRadius, 0, Math.PI * 2); ctx.clip();
-            ctx.fillStyle = '#000'; ctx.fillRect(0,0, canvas.width, canvas.height);
             let grad = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, tableRadius);
-            grad.addColorStop(0, 'rgba(0, 255, 255, 0.1)'); grad.addColorStop(1, 'transparent');
-            ctx.fillStyle = grad; ctx.fill(); ctx.restore();
-            ctx.beginPath(); ctx.arc(centerX, centerY, tableRadius, 0, Math.PI * 2); ctx.strokeStyle = '#222'; ctx.lineWidth = 6; ctx.stroke();
+            grad.addColorStop(0, 'rgba(0, 255, 255, 0.08)'); grad.addColorStop(1, 'transparent');
+            ctx.fillStyle = grad; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.restore();
+            ctx.strokeStyle = '#222'; ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(centerX, centerY, tableRadius, 0, Math.PI * 2); ctx.stroke();
             ctx.lineWidth = 12; ctx.strokeStyle = '#f0f'; ctx.beginPath(); ctx.arc(centerX, centerY, tableRadius, Math.PI - 0.35, Math.PI + 0.35); ctx.stroke();
             ctx.strokeStyle = '#0ff'; ctx.beginPath(); ctx.arc(centerX, centerY, tableRadius, -0.35, 0.35); ctx.stroke();
         } else {
             ctx.strokeStyle = '#222'; ctx.lineWidth = 6; ctx.beginPath(); ctx.roundRect(0, 0, canvas.width, canvas.height, cornerRadius); ctx.stroke();
             const curY = (currentRound === 3) ? goalY : (canvas.height - goalHeight)/2;
-            ctx.fillStyle = '#0ff'; ctx.fillRect(0, curY, 6, goalHeight); ctx.fillStyle = '#f0f'; ctx.fillRect(canvas.width-6, curY, 6, goalHeight);
-            
-            // DRAW ACCELERATION PLATES (PHASE 1)
-            if (currentRound === 1) {
-                ctx.shadowBlur = 15 + (plateFlash/10); 
-                ctx.shadowColor = '#0f0'; ctx.fillStyle = `rgb(0, ${200 + plateFlash/2}, 0)`;
-                ctx.fillRect(400, 0, 200, 10); // Top
-                ctx.fillRect(400, canvas.height -
+            ctx.fillStyle = '#0ff'; ctx.fillRect(0, curY, 6, goalHeight);
+            ctx.fillStyle = '#f0f'; ctx.fillRect(canvas.width-6, curY, 6, goalHeight);
+        }
+
+        ctx.setLineDash([15, 15]); ctx.strokeStyle = '#1a1a1a';
+        ctx.beginPath(); ctx.moveTo(centerX, 0); ctx.lineTo(centerX, canvas.height); ctx.stroke();
+        ctx.setLineDash([]); ctx.shadowBlur = 10; ctx.shadowColor = '#fff'; ctx.fillStyle = '#fff';
+        ctx.beginPath(); ctx.arc(puck.x, puck.y, puck.radius, 0, Math.PI*2); ctx.fill();
+        
+        drawP(p1); drawP(p2);
+        if (respawnTimer > 0) {
+            ctx.textAlign = "center"; ctx.shadowBlur = 0;
+            if (respawnTimer > 110) { ctx.fillStyle = "#fff"; ctx.font = "bold 70px 'Segoe UI'"; ctx.fillText("GOAL!", centerX, centerY - 20); }
+            else { ctx.fillStyle = "#0ff"; ctx.font = "bold 90px 'Segoe UI'"; ctx.fillText(Math.ceil(respawnTimer / 60), centerX, centerY + 30); }
+        }
+        ctx.restore(); 
+    }
+
+    function drawP(p) {
+        ctx.shadowBlur = 15; ctx.shadowColor = p.color; ctx.fillStyle = p.color;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 2; ctx.stroke();
+    }
+
+    function gameLoop() { update(); draw(); requestAnimationFrame(gameLoop); }
+    
+    // Pause / Resume UI helpers
+    function requestPause() { if (pausesLeft[isHost?'p1':'p2'] > 0) { if(isHost) handlePauseRequest('p1'); else conn.send({type:'PAUSE_REQ', player:'p2'}); }}
+    function handlePauseRequest(p) { isPaused = true; pausesLeft[p]--; syncData(); updateUI(); }
+    function resumeGame() { isPaused = false; if(isHost) syncData(); else conn.send({type:'RESUME'}); updateUI(); }
+    function resetFullMatch() { location.reload(); }
+</script>
+</body>
+</html>
