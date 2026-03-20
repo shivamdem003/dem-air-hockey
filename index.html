@@ -124,7 +124,7 @@
     let currentRound = 1, lastWinnerLabel = "", shakeIntensity = 0; 
     let scores = { p1: 0, p2: 0 }, seriesPoints = { p1: 0, p2: 0 }, pausesLeft = { p1: 4, p2: 4 };
     let respawnTimer = 0, lastHitter = 0;
-    let puckTrail = [];
+    let puckTrail = [], plateFlash = 0;
 
     let matchStats = {
         p1: { goals: 0, saves: 0, ownGoals: 0, totalHits: 0, rank: "C" },
@@ -229,6 +229,7 @@
 
     function update() {
         if (shakeIntensity > 0) shakeIntensity *= 0.92;
+        if (plateFlash > 0) plateFlash -= 5;
         if (isPaused || disconnected) return;
 
         if (isOffline && gameActive && respawnTimer === 0) {
@@ -274,7 +275,7 @@
         puck.x += puck.dx; puck.y += puck.dy;
         puck.dx *= puck.friction; puck.dy *= puck.friction;
 
-        // Trail Logic
+        // Trail logic
         if (Math.abs(puck.dx) > 10 || Math.abs(puck.dy) > 10) {
             puckTrail.push({x: puck.x, y: puck.y, life: 1.0});
         }
@@ -300,7 +301,6 @@
             let velAlongNormal = relativeVX * nx + relativeVY * ny;
             if (velAlongNormal < 0) {
                 let j = -(1 + 1.25) * velAlongNormal; pk.dx += j * nx; pk.dy += j * ny;
-                // Base speed increase on hit
                 let accel = currentRound === 1 ? 1.15 : 1.0;
                 pk.dx *= accel; pk.dy *= accel;
                 let speed = Math.sqrt(pk.dx**2 + pk.dy**2);
@@ -328,28 +328,35 @@
         
         let bounce = 0.85;
 
-        // --- ROUND 1 ACCELERATION PLATES (2x SPEED + REFLECT) ---
-        if (currentRound === 1 && Math.abs(puck.x - centerX) < 100) {
-            if (puck.y < puck.radius + 10 || puck.y > canvas.height - puck.radius - 10) {
-                // Apply 2x Multiplier
-                puck.dx *= 2.0;
-                puck.dy *= -1; 
-                
-                // Directional Snap based on last hitter to reflect toward opponent
-                if (lastHitter === 1) {
-                    puck.dx = Math.abs(puck.dx); // Always Go Right
-                } else if (lastHitter === 2) {
-                    puck.dx = -Math.abs(puck.dx); // Always Go Left
+        // --- FIXED PHASE 1 ACCELERATION PLATES ---
+        if (currentRound === 1) {
+            // Check if puck is horizontally within the plate range (400 to 600)
+            if (puck.x > 400 && puck.x < 600) {
+                // Check if puck hit Top Plate (y near 0) or Bottom Plate (y near 600)
+                if (puck.y < puck.radius + 15 || puck.y > canvas.height - puck.radius - 15) {
+                    
+                    if (lastHitter !== 0) {
+                        plateFlash = 100; // Visual flash trigger
+                        shakeIntensity = 12;
+                        
+                        // Force a reflection in Y
+                        puck.dy *= -1.2; 
+                        
+                        // Apply 2x speed based on maxSpeed
+                        const launchSpeed = puck.maxSpeed * 2.1;
+                        
+                        // Launch towards opponent
+                        if (lastHitter === 1) {
+                            puck.dx = launchSpeed; // Hit by P1? Fly towards P2
+                        } else if (lastHitter === 2) {
+                            puck.dx = -launchSpeed; // Hit by P2? Fly towards P1
+                        }
+                        
+                        // Ensure it doesn't get stuck inside the plate
+                        if (puck.y < 300) puck.y = puck.radius + 16;
+                        else puck.y = canvas.height - puck.radius - 16;
+                    }
                 }
-
-                // Increase absolute speed limit for Phase 1 "Surge"
-                let speed = Math.sqrt(puck.dx**2 + puck.dy**2);
-                const SURGE_LIMIT = puck.maxSpeed * 2.2;
-                if (speed > SURGE_LIMIT) {
-                    puck.dx = (puck.dx / speed) * SURGE_LIMIT;
-                    puck.dy = (puck.dy / speed) * SURGE_LIMIT;
-                }
-                shakeIntensity = 10;
             }
         }
         
@@ -440,46 +447,9 @@
             const curY = (currentRound === 3) ? goalY : (canvas.height - goalHeight)/2;
             ctx.fillStyle = '#0ff'; ctx.fillRect(0, curY, 6, goalHeight); ctx.fillStyle = '#f0f'; ctx.fillRect(canvas.width-6, curY, 6, goalHeight);
             
-            // Draw Green Plates
+            // DRAW ACCELERATION PLATES (PHASE 1)
             if (currentRound === 1) {
-                ctx.shadowBlur = 15; ctx.shadowColor = '#0f0'; ctx.fillStyle = '#0f0';
-                ctx.fillRect(centerX - 100, 0, 200, 10);
-                ctx.fillRect(centerX - 100, canvas.height - 10, 200, 10);
-                ctx.shadowBlur = 0;
-            }
-        }
-        
-        ctx.setLineDash([15, 15]); ctx.strokeStyle = '#1a1a1a'; ctx.beginPath(); ctx.moveTo(centerX, 0); ctx.lineTo(centerX, canvas.height); ctx.stroke();
-        ctx.setLineDash([]);
-        
-        // Draw Trail
-        puckTrail.forEach(t => {
-            ctx.beginPath(); ctx.arc(t.x, t.y, puck.radius * t.life, 0, Math.PI*2);
-            ctx.fillStyle = `rgba(0, 255, 255, ${t.life * 0.4})`; ctx.fill();
-        });
-
-        ctx.shadowBlur = 10; ctx.shadowColor = '#fff'; ctx.fillStyle = '#fff';
-        ctx.beginPath(); ctx.arc(puck.x, puck.y, puck.radius, 0, Math.PI*2); ctx.fill();
-        drawP(p1); drawP(p2);
-        
-        if (respawnTimer > 0) {
-            ctx.textAlign = "center"; ctx.shadowBlur = 0; ctx.fillStyle = respawnTimer > 110 ? "#fff" : "#0ff"; ctx.font = "bold 80px 'Segoe UI'";
-            ctx.fillText(respawnTimer > 110 ? "GOAL!" : Math.ceil(respawnTimer / 60), centerX, centerY + 30);
-        }
-        ctx.restore(); 
-    }
-
-    function drawP(p) {
-        ctx.shadowBlur = 15; ctx.shadowColor = p.color; ctx.fillStyle = p.color;
-        ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2); ctx.fill();
-        ctx.shadowBlur = 0; ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 2; ctx.stroke();
-    }
-
-    function requestPause() { if (!isPaused) { if (isHost || isOffline) handlePauseRequest('p1'); else conn.send({ type: 'PAUSE_REQ', player: 'p2' }); } }
-    function handlePauseRequest(player) { isPaused = true; updateUI(); }
-    function resumeGame() { isPaused = false; if (isHost && !isOffline) syncData(); else if (!isOffline) conn.send({ type: 'RESUME' }); updateUI(); }
-    function gameLoop() { update(); draw(); requestAnimationFrame(gameLoop); }
-</script>
-
-</body>
-</html>
+                ctx.shadowBlur = 15 + (plateFlash/10); 
+                ctx.shadowColor = '#0f0'; ctx.fillStyle = `rgb(0, ${200 + plateFlash/2}, 0)`;
+                ctx.fillRect(400, 0, 200, 10); // Top
+                ctx.fillRect(400, canvas.height -
