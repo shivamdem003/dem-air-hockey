@@ -146,7 +146,6 @@
     const p2 = { x: 850, y: 300, vx: 0, vy: 0, radius: 32, color: '#f0f' };
     let goalY = (canvas.height - goalHeight) / 2, goalDir = 1;
 
-    // Multiplayer setup
     peer.on('open', id => document.getElementById('my-id').innerText = id);
     peer.on('connection', c => { conn = c; isHost = true; setupConnection(); });
 
@@ -274,11 +273,20 @@
         const curGoalTop = (currentRound === 3) ? goalY : (canvas.height - goalHeight)/2;
         const curGoalBottom = curGoalTop + goalHeight;
 
+        // ACCELERATION PLATES (Round 1)
         if (currentRound === 1) {
             const pxStart = centerX - 75, pxEnd = centerX + 75;
             if (puck.x > pxStart && puck.x < pxEnd) {
-                if (puck.y < puck.radius + 5) { puck.dy = 14; puck.dx *= 0.5; }
-                if (puck.y > canvas.height - (puck.radius + 5)) { puck.dy = -14; puck.dx *= 0.5; }
+                if (puck.y < puck.radius + 5) { 
+                    puck.dy = 15; // Shoot down
+                    puck.dx *= 0.6;
+                    shakeIntensity = 5; 
+                }
+                if (puck.y > canvas.height - (puck.radius + 5)) { 
+                    puck.dy = -15; // Shoot up
+                    puck.dx *= 0.6;
+                    shakeIntensity = 5;
+                }
             }
         }
 
@@ -433,6 +441,15 @@
             ctx.fillStyle = '#f0f'; ctx.fillRect(canvas.width-6, curY, 6, goalHeight);
         }
 
+        // Draw Acceleration Plates for Round 1
+        if (currentRound === 1) {
+            ctx.save();
+            ctx.shadowBlur = 15; ctx.shadowColor = '#0f0'; ctx.fillStyle = '#0f0';
+            ctx.fillRect(centerX - 75, -2, 150, 8); // Top Plate
+            ctx.fillRect(centerX - 75, canvas.height - 6, 150, 8); // Bottom Plate
+            ctx.restore();
+        }
+
         ctx.setLineDash([15, 15]); ctx.strokeStyle = '#1a1a1a';
         ctx.beginPath(); ctx.moveTo(centerX, 0); ctx.lineTo(centerX, canvas.height); ctx.stroke();
         ctx.setLineDash([]); ctx.shadowBlur = 10; ctx.shadowColor = '#fff'; ctx.fillStyle = '#fff';
@@ -455,7 +472,6 @@
 
     function gameLoop() { update(); draw(); requestAnimationFrame(gameLoop); }
     
-    // Pause / Resume UI helpers
     function requestPause() { if (pausesLeft[isHost?'p1':'p2'] > 0) { if(isHost) handlePauseRequest('p1'); else conn.send({type:'PAUSE_REQ', player:'p2'}); }}
     function handlePauseRequest(p) { isPaused = true; pausesLeft[p]--; syncData(); updateUI(); }
     function resumeGame() { isPaused = false; if(isHost) syncData(); else conn.send({type:'RESUME'}); updateUI(); }
