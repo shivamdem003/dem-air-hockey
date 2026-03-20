@@ -124,6 +124,7 @@
     let currentRound = 1, lastWinnerLabel = "", shakeIntensity = 0; 
     let scores = { p1: 0, p2: 0 }, seriesPoints = { p1: 0, p2: 0 }, pausesLeft = { p1: 4, p2: 4 };
     let respawnTimer = 0, lastHitter = 0;
+    let puckTrail = [];
 
     let matchStats = {
         p1: { goals: 0, saves: 0, ownGoals: 0, totalHits: 0, rank: "C" },
@@ -273,6 +274,13 @@
         puck.x += puck.dx; puck.y += puck.dy;
         puck.dx *= puck.friction; puck.dy *= puck.friction;
 
+        // Trail Logic
+        if (Math.abs(puck.dx) > 10 || Math.abs(puck.dy) > 10) {
+            puckTrail.push({x: puck.x, y: puck.y, life: 1.0});
+        }
+        puckTrail.forEach(t => t.life -= 0.05);
+        puckTrail = puckTrail.filter(t => t.life > 0);
+
         if (currentRound === 2) updateCirclePhysics();
         else updateRectPhysics();
 
@@ -292,6 +300,7 @@
             let velAlongNormal = relativeVX * nx + relativeVY * ny;
             if (velAlongNormal < 0) {
                 let j = -(1 + 1.25) * velAlongNormal; pk.dx += j * nx; pk.dy += j * ny;
+                // Base speed increase on hit
                 let accel = currentRound === 1 ? 1.15 : 1.0;
                 pk.dx *= accel; pk.dy *= accel;
                 let speed = Math.sqrt(pk.dx**2 + pk.dy**2);
@@ -309,6 +318,7 @@
         if (lastHitter === scoredOnPlayer) matchStats['p'+scoredOnPlayer].ownGoals++;
         else if (lastHitter !== 0) matchStats['p'+(3-scoredOnPlayer)].goals++;
         shakeIntensity = 15; resetPuck();
+        puckTrail = [];
     }
 
     function updateRectPhysics() {
@@ -318,24 +328,28 @@
         
         let bounce = 0.85;
 
-        // --- ROUND 1 ACCELERATION PLATES LOGIC ---
+        // --- ROUND 1 ACCELERATION PLATES (2x SPEED + REFLECT) ---
         if (currentRound === 1 && Math.abs(puck.x - centerX) < 100) {
-            // Hit Top or Bottom Plate
             if (puck.y < puck.radius + 10 || puck.y > canvas.height - puck.radius - 10) {
-                puck.dx *= 1.5; // 1.5x Multiplier
+                // Apply 2x Multiplier
+                puck.dx *= 2.0;
                 puck.dy *= -1; 
                 
-                // Snap toward opponent goal
-                if (lastHitter === 1) puck.dx = Math.abs(puck.dx);
-                else if (lastHitter === 2) puck.dx = -Math.abs(puck.dx);
-
-                // Speed limit for safety (1.5x regular max)
-                let speed = Math.sqrt(puck.dx**2 + puck.dy**2);
-                if (speed > puck.maxSpeed * 1.5) {
-                    puck.dx = (puck.dx / speed) * (puck.maxSpeed * 1.5);
-                    puck.dy = (puck.dy / speed) * (puck.maxSpeed * 1.5);
+                // Directional Snap based on last hitter to reflect toward opponent
+                if (lastHitter === 1) {
+                    puck.dx = Math.abs(puck.dx); // Always Go Right
+                } else if (lastHitter === 2) {
+                    puck.dx = -Math.abs(puck.dx); // Always Go Left
                 }
-                shakeIntensity = 5;
+
+                // Increase absolute speed limit for Phase 1 "Surge"
+                let speed = Math.sqrt(puck.dx**2 + puck.dy**2);
+                const SURGE_LIMIT = puck.maxSpeed * 2.2;
+                if (speed > SURGE_LIMIT) {
+                    puck.dx = (puck.dx / speed) * SURGE_LIMIT;
+                    puck.dy = (puck.dy / speed) * SURGE_LIMIT;
+                }
+                shakeIntensity = 10;
             }
         }
         
@@ -411,6 +425,7 @@
     function draw() {
         ctx.save(); if (shakeIntensity > 0.5) ctx.translate((Math.random()-0.5)*shakeIntensity, (Math.random()-0.5)*shakeIntensity);
         ctx.fillStyle = '#050505'; ctx.fillRect(-20, -20, canvas.width+40, canvas.height+40);
+        
         if (currentRound === 2) {
             ctx.save(); ctx.beginPath(); ctx.arc(centerX, centerY, tableRadius, 0, Math.PI * 2); ctx.clip();
             ctx.fillStyle = '#000'; ctx.fillRect(0,0, canvas.width, canvas.height);
@@ -425,18 +440,28 @@
             const curY = (currentRound === 3) ? goalY : (canvas.height - goalHeight)/2;
             ctx.fillStyle = '#0ff'; ctx.fillRect(0, curY, 6, goalHeight); ctx.fillStyle = '#f0f'; ctx.fillRect(canvas.width-6, curY, 6, goalHeight);
             
-            // DRAW ACCELERATION PLATES (PHASE 1)
+            // Draw Green Plates
             if (currentRound === 1) {
                 ctx.shadowBlur = 15; ctx.shadowColor = '#0f0'; ctx.fillStyle = '#0f0';
-                ctx.fillRect(centerX - 100, 0, 200, 10); // Top
-                ctx.fillRect(centerX - 100, canvas.height - 10, 200, 10); // Bottom
+                ctx.fillRect(centerX - 100, 0, 200, 10);
+                ctx.fillRect(centerX - 100, canvas.height - 10, 200, 10);
                 ctx.shadowBlur = 0;
             }
         }
+        
         ctx.setLineDash([15, 15]); ctx.strokeStyle = '#1a1a1a'; ctx.beginPath(); ctx.moveTo(centerX, 0); ctx.lineTo(centerX, canvas.height); ctx.stroke();
-        ctx.setLineDash([]); ctx.shadowBlur = 10; ctx.shadowColor = '#fff'; ctx.fillStyle = '#fff';
+        ctx.setLineDash([]);
+        
+        // Draw Trail
+        puckTrail.forEach(t => {
+            ctx.beginPath(); ctx.arc(t.x, t.y, puck.radius * t.life, 0, Math.PI*2);
+            ctx.fillStyle = `rgba(0, 255, 255, ${t.life * 0.4})`; ctx.fill();
+        });
+
+        ctx.shadowBlur = 10; ctx.shadowColor = '#fff'; ctx.fillStyle = '#fff';
         ctx.beginPath(); ctx.arc(puck.x, puck.y, puck.radius, 0, Math.PI*2); ctx.fill();
         drawP(p1); drawP(p2);
+        
         if (respawnTimer > 0) {
             ctx.textAlign = "center"; ctx.shadowBlur = 0; ctx.fillStyle = respawnTimer > 110 ? "#fff" : "#0ff"; ctx.font = "bold 80px 'Segoe UI'";
             ctx.fillText(respawnTimer > 110 ? "GOAL!" : Math.ceil(respawnTimer / 60), centerX, centerY + 30);
