@@ -6,7 +6,7 @@
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         body { background: #050505; color: #0ff; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; overflow: hidden; }
-        #menu { margin-bottom: 10px; background: #1a1a1a; padding: 12px; border-radius: 12px; border: 1px solid #333; display: flex; gap: 15px; align-items: center; z-index: 10; }
+        #menu { margin-bottom: 10px; background: #1a1a1a; padding: 12px; border-radius: 12px; border: 1px solid #333; display: flex; gap: 15px; align-items: center; z-index: 10; flex-wrap: wrap; justify-content: center; }
         canvas { border: 2px solid #222; background: #000; cursor: none; box-shadow: 0 0 30px rgba(0,255,255,0.05); }
         .hud { display: flex; justify-content: space-between; width: 1000px; align-items: center; margin-bottom: 20px; }
         .score { font-size: 2.8rem; font-weight: bold; text-shadow: 0 0 10px #0ff; min-width: 80px; text-align: center; }
@@ -25,7 +25,8 @@
         #pause-btn { background: #ffaa00; }
         .pause-count { font-size: 0.8rem; color: #888; margin-left: 5px; }
 
-        input { background: #111; border: 1px solid #444; color: white; padding: 8px; border-radius: 4px; outline: none; width: 180px; }
+        input, select { background: #111; border: 1px solid #444; color: white; padding: 8px; border-radius: 4px; outline: none; }
+        input { width: 180px; }
         
         #overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.96); padding: 40px; border-radius: 20px; text-align: center; border: 2px solid #0ff; display: none; z-index: 100; min-width: 500px; }
         
@@ -53,7 +54,18 @@
         <div>ID: <strong id="my-id" style="color:white">...</strong></div>
         <input type="text" id="remote-id" placeholder="Paste Friend's ID">
         <button onclick="connectToFriend()">Connect</button>
+        
         <div style="border-left: 1px solid #333; height: 20px; margin: 0 5px;"></div>
+        
+        <select id="ai-difficulty" style="background: #111; color: #0ff; border: 1px solid #444; padding: 7px; border-radius: 4px;">
+            <option value="easy">Easy AI</option>
+            <option value="medium" selected>Medium AI</option>
+            <option value="hard">Hard AI</option>
+        </select>
+        <button onclick="startOfflineMatch()" style="background: #f0f;">Play Offline</button>
+
+        <div style="border-left: 1px solid #333; height: 20px; margin: 0 5px;"></div>
+        
         <button id="pause-btn" onclick="requestPause()">Pause Game</button>
         <div class="pause-count">Pauses: <span id="p1-pauses">4</span> | <span id="p2-pauses">4</span></div>
     </div>
@@ -119,8 +131,13 @@
     const ctx = canvas.getContext('2d');
     const peer = new Peer(); 
     let conn;
+    
+    // Game State Variables
     let isHost = false, gameActive = true, isPaused = false, disconnected = false;
+    let isOffline = false;
+    let aiLoopStarted = false;
 
+    // Physics Constants
     const centerX = 500, centerY = 300, tableRadius = 280, cornerRadius = 45, goalHeight = 160;
     const WIN_SCORE = 13, SERIES_TO_WIN = 2;
     
@@ -145,19 +162,22 @@
         document.body.style.touchAction = 'none';
     }
 
+    // Networking Setup
     peer.on('open', id => document.getElementById('my-id').innerText = id);
-    peer.on('connection', c => { conn = c; isHost = true; setupConnection(); });
+    peer.on('connection', c => { conn = c; isHost = true; isOffline = false; setupConnection(); });
 
     function connectToFriend() {
         conn = peer.connect(document.getElementById('remote-id').value);
-        isHost = false; setupConnection();
+        isHost = false; 
+        isOffline = false;
+        setupConnection();
     }
 
     function setupConnection() {
         conn.on('open', () => {
             document.getElementById('status').innerText = "LINK ESTABLISHED";
             disconnected = false; if(isHost) resetPuck();
-            gameLoop();
+            if (!aiLoopStarted) { aiLoopStarted = true; gameLoop(); }
         });
         conn.on('close', () => handleDisconnection());
         conn.on('error', () => handleDisconnection());
@@ -179,8 +199,75 @@
         });
     }
 
+    // Offline Mode Logic
+    function startOfflineMatch() {
+        isOffline = true;
+        isHost = true; // Local player acts as host for physics
+        disconnected = false;
+        
+        // Clean up any existing connection if someone was playing online
+        if (conn) { conn.close(); conn = null; }
+
+        document.getElementById('status').innerText = "OFFLINE MODE: AI ACTIVE";
+        resetFullMatch();
+        
+        if (!aiLoopStarted) {
+            aiLoopStarted = true;
+            gameLoop();
+        }
+    }
+
+    function updateAI() {
+        if (!gameActive || isPaused || respawnTimer > 0) return;
+
+        const difficulty = document.getElementById('ai-difficulty').value;
+        let speedMult = 0.05;
+        let maxSpeed = 5;
+        let targetX = p2.x;
+        
+        const curGoalCenter = (currentRound === 3) ? goalY + (goalHeight / 2) : centerY;
+        let targetY = curGoalCenter; 
+
+        if (difficulty === 'easy') { speedMult = 0.03; maxSpeed = 4; }
+        else if (difficulty === 'medium') { speedMult = 0.08; maxSpeed = 8; }
+        else if (difficulty === 'hard') { speedMult = 0.16; maxSpeed = 15; }
+
+        if (puck.x > centerX) {
+            targetX = puck.x;
+            targetY = puck.y;
+            if (difficulty === 'hard') {
+                 targetY += puck.dy * 8;
+                 targetX += puck.dx * 8;
+            }
+        } else {
+            targetX = canvas.width - 150; 
+            targetY = puck.y; 
+            targetY = Math.max(curGoalCenter - 100, Math.min(curGoalCenter + 100, targetY));
+        }
+
+        let dx = targetX - p2.x;
+        let dy = targetY - p2.y;
+
+        p2.vx = dx * speedMult;
+        p2.vy = dy * speedMult;
+
+        let speed = Math.sqrt(p2.vx**2 + p2.vy**2);
+        if (speed > maxSpeed) {
+            p2.vx = (p2.vx / speed) * maxSpeed;
+            p2.vy = (p2.vy / speed) * maxSpeed;
+        }
+
+        p2.x += p2.vx;
+        p2.y += p2.vy;
+
+        p2.x = Math.max(p2.x, centerX + p2.radius);
+        p2.y = Math.max(p2.radius, Math.min(canvas.height - p2.radius, p2.y));
+        if (currentRound === 2) applyCircleConstraint(p2, "right");
+    }
+
+    // Game Control & Networking Handlers
     function handleDisconnection() {
-        if (disconnected) return;
+        if (disconnected || isOffline) return;
         disconnected = true; gameActive = false; isPaused = false; updateUI();
         const overlay = document.getElementById('overlay');
         overlay.style.display = 'block';
@@ -195,8 +282,8 @@
         if (!gameActive || isPaused || disconnected) return;
         const playerKey = isHost ? 'p1' : 'p2';
         if (pausesLeft[playerKey] > 0) {
-            if (isHost) handlePauseRequest('p1');
-            else conn.send({ type: 'PAUSE_REQ', player: 'p2' });
+            if (isHost || isOffline) handlePauseRequest(playerKey);
+            else if (conn) conn.send({ type: 'PAUSE_REQ', player: 'p2' });
         }
     }
 
@@ -210,11 +297,11 @@
     function resumeGame() {
         if (disconnected) return;
         isPaused = false;
-        if (isHost) syncData(); else if (conn) conn.send({ type: 'RESUME' });
+        if (isHost || isOffline) syncData(); else if (conn) conn.send({ type: 'RESUME' });
         updateUI();
     }
 
-    // Touch event handlers
+    // Input Handlers
     function getTouchPos(e) {
         const rect = canvas.getBoundingClientRect();
         const touch = e.touches[0] || e.changedTouches[0];
@@ -231,7 +318,7 @@
             y: e.clientY - canvas.getBoundingClientRect().top
         };
 
-        if (isHost) {
+        if (isHost || isOffline) {
             p1.vx = pos.x - p1.x; p1.vy = pos.y - p1.y;
             p1.x = Math.min(pos.x, canvas.width/2 - p1.radius);
             p1.y = Math.max(p1.radius, Math.min(canvas.height - p1.radius, pos.y));
@@ -244,14 +331,12 @@
         }
     }
 
-    // Mouse events
     canvas.addEventListener('mousemove', handleInput);
-    
-    // Touch events
     canvas.addEventListener('touchstart', handleInput, { passive: false });
     canvas.addEventListener('touchmove', handleInput, { passive: false });
     canvas.addEventListener('touchend', handleInput, { passive: false });
 
+    // Physics Engine
     function applyCircleConstraint(p, side) {
         let dx = p.x - centerX, dy = p.y - centerY, dist = Math.sqrt(dx*dx + dy*dy);
         if (dist > tableRadius - p.radius) {
@@ -277,6 +362,8 @@
             syncData(); return;
         }
 
+        if (isOffline) updateAI();
+
         puck.x += puck.dx; puck.y += puck.dy;
         puck.dx *= puck.friction; puck.dy *= puck.friction;
 
@@ -289,7 +376,7 @@
     }
 
     function syncData() {
-        if (conn && conn.open && isHost) {
+        if (conn && conn.open && isHost && !isOffline) {
             conn.send({ p1, puck, scores, series: seriesPoints, pausesLeft, round: currentRound, gameActive, isPaused, goalY, respawnTimer, lastWinnerLabel, stats: matchStats });
         }
     }
@@ -378,15 +465,13 @@
         }
     }
 
+    // Game Logic & UI Updates
     function calculateGrade(pKey) {
         const s = matchStats[pKey];
         const isWinner = seriesPoints[pKey] >= SERIES_TO_WIN;
-        
         const accuracy = s.totalHits > 0 ? (s.goals / s.totalHits) : 0;
         let score = (s.goals * 25) + (s.saves * 12) - (s.ownGoals * 45) + (accuracy * 100);
-        
         if (isWinner) score += 50;
-        
         if (score >= 600) return "S";
         if (score >= 450) return "A";
         if (score >= 300) return "B";
@@ -401,7 +486,6 @@
         document.getElementById('p1-pauses').innerText = pausesLeft.p1;
         document.getElementById('p2-pauses').innerText = pausesLeft.p2;
         
-        // Update the Arena Name based on the current round
         const arenaNames = ["VELOCITY SURGE", "GRAVITY ORBIT", "NEON SHIFTER"];
         document.getElementById('table-type').innerText = arenaNames[currentRound - 1] || "HYPERSPACE";
         
@@ -411,7 +495,7 @@
         
         const overlay = document.getElementById('overlay'), statsUI = document.getElementById('stats-ui');
 
-        if (disconnected) { overlay.style.display = 'block'; }
+        if (disconnected && !isOffline) { overlay.style.display = 'block'; }
         else if (isPaused) {
             overlay.style.display = 'block';
             document.getElementById('winner-text').innerText = "GAME PAUSED";
@@ -438,7 +522,7 @@
                 document.getElementById('stat-p2-saves').innerText = matchStats.p2.saves;
                 document.getElementById('stat-p1-own').innerText = matchStats.p1.ownGoals;
                 document.getElementById('stat-p2-own').innerText = matchStats.p2.ownGoals;
-                if(isHost) document.getElementById('restart-btn').style.display = 'inline-block';
+                if(isHost || isOffline) document.getElementById('restart-btn').style.display = 'inline-block';
             }
         } else { overlay.style.display = 'none'; }
         
@@ -451,7 +535,7 @@
 
     function resetPuck() {
         puck.x = centerX; puck.y = centerY; puck.dx = 0; puck.dy = 0;
-        if(isHost) {
+        if(isHost || isOffline) {
             if (scores.p1 >= WIN_SCORE) startNewRound("PLAYER 1");
             else if (scores.p2 >= WIN_SCORE) startNewRound("PLAYER 2");
             else respawnTimer = 160;
@@ -461,14 +545,14 @@
     function startNewRound(winner) {
         gameActive = false; lastWinnerLabel = winner; seriesPoints[winner === "PLAYER 1" ? 'p1' : 'p2']++;
         const isMatchOver = seriesPoints.p1 >= SERIES_TO_WIN || seriesPoints.p2 >= SERIES_TO_WIN;
-        if (isMatchOver && isHost) {
+        if (isMatchOver && (isHost || isOffline)) {
             matchStats.p1.rank = calculateGrade('p1');
             matchStats.p2.rank = calculateGrade('p2');
         }
         updateUI(); syncData(); 
         if (!isMatchOver) {
             setTimeout(() => {
-                if (disconnected) return;
+                if (disconnected && !isOffline) return;
                 scores = {p1:0, p2:0}; currentRound++; gameActive = true; resetPuck(); updateUI();
             }, 3000);
         }
@@ -482,6 +566,7 @@
         resetPuck(); updateUI();
     }
 
+    // Rendering
     function draw() {
         ctx.save();
         if (shakeIntensity > 0.5) ctx.translate((Math.random()-0.5)*shakeIntensity, (Math.random()-0.5)*shakeIntensity);
