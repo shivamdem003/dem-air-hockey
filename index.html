@@ -401,6 +401,10 @@
         document.getElementById('p1-pauses').innerText = pausesLeft.p1;
         document.getElementById('p2-pauses').innerText = pausesLeft.p2;
         
+        // Update the Arena Name based on the current round
+        const arenaNames = ["VELOCITY SURGE", "GRAVITY ORBIT", "NEON SHIFTER"];
+        document.getElementById('table-type').innerText = arenaNames[currentRound - 1] || "HYPERSPACE";
+        
         const isMatchOver = seriesPoints.p1 >= SERIES_TO_WIN || seriesPoints.p2 >= SERIES_TO_WIN;
         const playerKey = isHost ? 'p1' : 'p2';
         document.getElementById('pause-btn').disabled = pausesLeft[playerKey] <= 0 || isPaused || disconnected;
