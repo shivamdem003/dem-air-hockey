@@ -5,10 +5,33 @@
     <title>Air Hockey - Pro Gravity Colosseum</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
-        body { background: #050505; color: #0ff; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; overflow: hidden; }
-        #menu { margin-bottom: 10px; background: #1a1a1a; padding: 12px; border-radius: 12px; border: 1px solid #333; display: flex; gap: 15px; align-items: center; z-index: 10; flex-wrap: wrap; justify-content: center; }
-        canvas { border: 2px solid #222; background: #000; cursor: none; box-shadow: 0 0 30px rgba(0,255,255,0.05); }
-        .hud { display: flex; justify-content: space-between; width: 1000px; align-items: center; margin-bottom: 20px; }
+        body { 
+            background: #050505; color: #0ff; font-family: 'Segoe UI', sans-serif; 
+            display: flex; flex-direction: column; align-items: center; justify-content: center; 
+            height: 100vh; margin: 0; overflow: hidden; 
+        }
+        
+        #menu { 
+            margin-bottom: 10px; background: #1a1a1a; padding: 12px; border-radius: 12px; 
+            border: 1px solid #333; display: flex; gap: 15px; align-items: center; 
+            z-index: 10; flex-wrap: wrap; justify-content: center; 
+        }
+        
+        /* Hide menu automatically when in fullscreen */
+        :fullscreen #menu { display: none; }
+        :-webkit-full-screen #menu { display: none; }
+
+        .hud { 
+            display: flex; justify-content: space-between; 
+            width: 100%; max-width: 1000px; align-items: center; margin-bottom: 20px; 
+        }
+        
+        canvas { 
+            width: 100%; max-width: 1000px; height: auto; aspect-ratio: 1000 / 600; 
+            border: 2px solid #222; background: #000; cursor: none; 
+            box-shadow: 0 0 30px rgba(0,255,255,0.05); touch-action: none; 
+        }
+        
         .score { font-size: 2.8rem; font-weight: bold; text-shadow: 0 0 10px #0ff; min-width: 80px; text-align: center; }
         .series-dots { font-size: 1.5rem; letter-spacing: 5px; color: #333; }
         .series-dots .won { color: #0ff; text-shadow: 0 0 8px #0ff; }
@@ -68,6 +91,9 @@
         
         <button id="pause-btn" onclick="requestPause()">Pause Game</button>
         <div class="pause-count">Pauses: <span id="p1-pauses">4</span> | <span id="p2-pauses">4</span></div>
+
+        <div style="border-left: 1px solid #333; height: 20px; margin: 0 5px;"></div>
+        <button onclick="toggleFullScreen()" style="background: #0084ff; color: white;">⛶ Fullscreen</button>
     </div>
 
     <div class="hud">
@@ -155,11 +181,23 @@
     const p2 = { x: 850, y: 300, vx: 0, vy: 0, radius: 32, color: '#f0f' };
     let goalY = (canvas.height - goalHeight) / 2, goalDir = 1;
 
-    // Touch support
+    // Touch support flag
     let isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-    if (isTouchDevice) {
-        canvas.style.cursor = 'auto';
-        document.body.style.touchAction = 'none';
+
+    // Fullscreen Logic
+    function toggleFullScreen() {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch(err => {
+                console.log(`Error attempting to enable full-screen mode: ${err.message}`);
+            });
+            if (screen.orientation && screen.orientation.lock) {
+                screen.orientation.lock('landscape').catch(e => console.log("Orientation lock not supported or failed."));
+            }
+        } else {
+            if (document.exitFullscreen) {
+                document.exitFullscreen();
+            }
+        }
     }
 
     // Networking Setup
@@ -202,10 +240,9 @@
     // Offline Mode Logic
     function startOfflineMatch() {
         isOffline = true;
-        isHost = true; // Local player acts as host for physics
+        isHost = true;
         disconnected = false;
         
-        // Clean up any existing connection if someone was playing online
         if (conn) { conn.close(); conn = null; }
 
         document.getElementById('status').innerText = "OFFLINE MODE: AI ACTIVE";
@@ -301,22 +338,33 @@
         updateUI();
     }
 
-    // Input Handlers
-    function getTouchPos(e) {
+    // Input Handlers & Scaling
+    function getScaledPos(clientX, clientY) {
         const rect = canvas.getBoundingClientRect();
-        const touch = e.touches[0] || e.changedTouches[0];
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        
         return {
-            x: touch.clientX - rect.left,
-            y: touch.clientY - rect.top
+            x: (clientX - rect.left) * scaleX,
+            y: (clientY - rect.top) * scaleY
         };
     }
 
     function handleInput(e) {
         if (!gameActive || isPaused || disconnected) return;
-        const pos = isTouchDevice ? getTouchPos(e) : {
-            x: e.clientX - canvas.getBoundingClientRect().left,
-            y: e.clientY - canvas.getBoundingClientRect().top
-        };
+        
+        let clientX, clientY;
+        
+        if (e.type.startsWith('touch')) {
+            clientX = e.touches[0].clientX;
+            clientY = e.touches[0].clientY;
+            if (e.cancelable) e.preventDefault();
+        } else {
+            clientX = e.clientX;
+            clientY = e.clientY;
+        }
+
+        const pos = getScaledPos(clientX, clientY);
 
         if (isHost || isOffline) {
             p1.vx = pos.x - p1.x; p1.vy = pos.y - p1.y;
