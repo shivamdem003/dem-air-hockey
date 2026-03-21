@@ -3,7 +3,6 @@
 <head>
     <meta charset="UTF-8">
     <title>Air Hockey - Pro Gravity Colosseum</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         body { 
@@ -24,23 +23,14 @@
 
         .hud { 
             display: flex; justify-content: space-between; 
-            width: 95%; max-width: 1000px; align-items: center; margin-bottom: 10px; 
+            width: 100%; max-width: 1000px; align-items: center; margin-bottom: 20px; 
         }
         
         canvas { 
-            width: 100%; 
-            max-width: 1000px; 
-            max-height: 65vh; /* Prevents overflow on mobile landscape */
-            height: auto; 
-            aspect-ratio: 1000 / 600; 
+            width: 100%; max-width: 1000px; height: auto; aspect-ratio: 1000 / 600; 
             border: 2px solid #222; background: #000; cursor: none; 
             box-shadow: 0 0 30px rgba(0,255,255,0.05); touch-action: none; 
-            object-fit: contain;
         }
-
-        /* Allow the canvas to use more vertical space when the menu hides in fullscreen */
-        :fullscreen canvas { max-height: 85vh; }
-        :-webkit-full-screen canvas { max-height: 85vh; }
         
         .score { font-size: 2.8rem; font-weight: bold; text-shadow: 0 0 10px #0ff; min-width: 80px; text-align: center; }
         .series-dots { font-size: 1.5rem; letter-spacing: 5px; color: #333; }
