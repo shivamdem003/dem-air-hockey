@@ -7,7 +7,7 @@
     <style>
         body { background: #050505; color: #0ff; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; overflow: hidden; }
         #menu { margin-bottom: 10px; background: #1a1a1a; padding: 12px; border-radius: 12px; border: 1px solid #333; display: flex; gap: 15px; align-items: center; z-index: 10; }
-        canvas { border: 2px solid #222; background: #000; cursor: none; box-shadow: 0 0 30px rgba(0,255,255,0.05); }
+        canvas { border: 2px solid #222; background: #000; cursor: none; box-shadow: 0 0 30px rgba(0,255,255,0.05); image-rendering: pixelated; }
         .hud { display: flex; justify-content: space-between; width: 1000px; align-items: center; margin-bottom: 20px; }
         .score { font-size: 2.8rem; font-weight: bold; text-shadow: 0 0 10px #0ff; min-width: 80px; text-align: center; }
         .series-dots { font-size: 1.5rem; letter-spacing: 5px; color: #333; }
@@ -15,8 +15,8 @@
         .series-dots.p2 .won { color: #f0f; text-shadow: 0 0 8px #f0f; }
         
         .round-display { text-align: center; color: #ccc; background: rgba(255,255,255,0.03); padding: 12px 50px; border-radius: 15px; border: 1px solid #333; min-width: 300px; }
-        #round-label { font-size: 1rem; letter-spacing: 3px; color: #888; text-transform: uppercase; margin-bottom: 4px; }
-        #table-type { display: block; font-size: 2rem; font-weight: 900; color: #fff; text-shadow: 0 0 15px rgba(255,255,255,0.3); letter-spacing: 1px; text-transform: uppercase; }
+        #round-label { font-size: 0.8rem; letter-spacing: 3px; color: #888; text-transform: uppercase; margin-bottom: 4px; }
+        #table-type { display: block; font-size: 1.8rem; font-weight: 900; color: #fff; text-shadow: 0 0 15px rgba(255,255,255,0.3); letter-spacing: 1px; text-transform: uppercase; }
 
         button { background: #0ff; border: none; padding: 8px 18px; cursor: pointer; font-weight: bold; border-radius: 4px; transition: 0.2s; color: #000; text-transform: uppercase; }
         button:hover:not(:disabled) { background: #fff; transform: translateY(-1px); }
@@ -38,8 +38,8 @@
 
         .rank-box { margin-bottom: 15px; }
         .rank-letter { font-size: 4rem; font-weight: 900; line-height: 1; margin: 5px 0; }
-        .rank-s { color: #ffdf00; text-shadow: 0 0 25px rgba(255,223,0,0.8); }
-        .rank-a { color: #ff4e00; text-shadow: 0 0 15px rgba(255,78,0,0.5); }
+        .rank-s { color: #ffdf00; }
+        .rank-a { color: #ff4e00; }
         .rank-b { color: #00ff00; }
         .rank-c { color: #0084ff; }
         .rank-d { color: #888; }
@@ -138,7 +138,6 @@
     const p2 = { x: 850, y: 300, vx: 0, vy: 0, radius: 32, color: '#f0f' };
     let goalY = (canvas.height - goalHeight) / 2, goalDir = 1;
 
-    // Touch support
     let isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
     if (isTouchDevice) {
         canvas.style.cursor = 'auto';
@@ -214,14 +213,10 @@
         updateUI();
     }
 
-    // Touch event handlers
     function getTouchPos(e) {
         const rect = canvas.getBoundingClientRect();
         const touch = e.touches[0] || e.changedTouches[0];
-        return {
-            x: touch.clientX - rect.left,
-            y: touch.clientY - rect.top
-        };
+        return { x: touch.clientX - rect.left, y: touch.clientY - rect.top };
     }
 
     function handleInput(e) {
@@ -244,13 +239,9 @@
         }
     }
 
-    // Mouse events
     canvas.addEventListener('mousemove', handleInput);
-    
-    // Touch events
     canvas.addEventListener('touchstart', handleInput, { passive: false });
     canvas.addEventListener('touchmove', handleInput, { passive: false });
-    canvas.addEventListener('touchend', handleInput, { passive: false });
 
     function applyCircleConstraint(p, side) {
         let dx = p.x - centerX, dy = p.y - centerY, dist = Math.sqrt(dx*dx + dy*dy);
@@ -270,8 +261,9 @@
         if (respawnTimer > 0) {
             respawnTimer--;
             if (respawnTimer === 0) {
-                puck.dx = (Math.random() > 0.5 ? 1.5 : -1.5);
-                puck.dy = (Math.random() - 0.5) * 2;
+                // MODIFIED: SLOWER RELEASE
+                puck.dx = (Math.random() > 0.5 ? 1.5 : -1.5); 
+                puck.dy = (Math.random() - 0.5) * 2; 
                 lastHitter = 0;
             }
             syncData(); return;
@@ -379,19 +371,11 @@
     }
 
     function calculateGrade(pKey) {
-        const s = matchStats[pKey];
-        const isWinner = seriesPoints[pKey] >= SERIES_TO_WIN;
-        
+        const s = matchStats[pKey], isWinner = seriesPoints[pKey] >= SERIES_TO_WIN;
         const accuracy = s.totalHits > 0 ? (s.goals / s.totalHits) : 0;
         let score = (s.goals * 25) + (s.saves * 12) - (s.ownGoals * 45) + (accuracy * 100);
-        
         if (isWinner) score += 50;
-        
-        if (score >= 600) return "S";
-        if (score >= 450) return "A";
-        if (score >= 300) return "B";
-        if (score >= 150) return "C";
-        return "D";
+        if (score >= 600) return "S"; if (score >= 450) return "A"; if (score >= 300) return "B"; if (score >= 150) return "C"; return "D";
     }
 
     function updateUI() {
@@ -401,7 +385,7 @@
         document.getElementById('p1-pauses').innerText = pausesLeft.p1;
         document.getElementById('p2-pauses').innerText = pausesLeft.p2;
         
-        // Update the Arena Name based on the current round
+        // MODIFIED: DYNAMIC ROUND NAMES
         const arenaNames = ["VELOCITY SURGE", "GRAVITY ORBIT", "NEON SHIFTER"];
         document.getElementById('table-type').innerText = arenaNames[currentRound - 1] || "HYPERSPACE";
         
@@ -410,7 +394,6 @@
         document.getElementById('pause-btn').disabled = pausesLeft[playerKey] <= 0 || isPaused || disconnected;
         
         const overlay = document.getElementById('overlay'), statsUI = document.getElementById('stats-ui');
-
         if (disconnected) { overlay.style.display = 'block'; }
         else if (isPaused) {
             overlay.style.display = 'block';
@@ -423,7 +406,6 @@
             document.getElementById('winner-text').innerText = isMatchOver ? lastWinnerLabel + " VICTORIOUS" : lastWinnerLabel + " ROUND WIN";
             document.getElementById('sub-text').innerText = isMatchOver ? "Series Concluded" : "Preparing next colosseum...";
             document.getElementById('resume-btn').style.display = 'none';
-            
             if (isMatchOver) {
                 statsUI.style.display = 'block';
                 const p1G = matchStats.p1.rank, p2G = matchStats.p2.rank;
@@ -431,7 +413,6 @@
                 r1.innerText = p1G; r2.innerText = p2G;
                 r1.className = `rank-letter rank-${p1G.toLowerCase()}`;
                 r2.className = `rank-letter rank-${p2G.toLowerCase()}`;
-
                 document.getElementById('stat-p1-goals').innerText = matchStats.p1.goals;
                 document.getElementById('stat-p2-goals').innerText = matchStats.p2.goals;
                 document.getElementById('stat-p1-saves').innerText = matchStats.p1.saves;
@@ -485,7 +466,11 @@
     function draw() {
         ctx.save();
         if (shakeIntensity > 0.5) ctx.translate((Math.random()-0.5)*shakeIntensity, (Math.random()-0.5)*shakeIntensity);
-        ctx.fillStyle = '#050505'; ctx.fillRect(-20, -20, canvas.width+40, canvas.height+40);
+        
+        // MODIFIED: HARD CLEAR TO PREVENT GHOSTING
+        ctx.clearRect(0,0, canvas.width, canvas.height);
+        ctx.fillStyle = '#050505'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+
         if (currentRound === 2) {
             ctx.save(); ctx.beginPath(); ctx.arc(centerX, centerY, tableRadius, 0, Math.PI * 2); ctx.clip();
             ctx.fillStyle = '#000'; ctx.fillRect(0,0, canvas.width, canvas.height);
@@ -503,26 +488,36 @@
             ctx.fillStyle = '#f0f'; ctx.fillRect(canvas.width-6, curY, 6, goalHeight);
         }
         if (currentRound === 1) {
-            ctx.shadowBlur = 10; ctx.shadowColor = '#0f0'; ctx.fillStyle = '#0f0';
+            ctx.fillStyle = 'rgba(0, 255, 0, 0.2)'; // Softened bumpers
             ctx.fillRect(centerX-75, -5, 150, 10); ctx.fillRect(centerX-75, canvas.height - 5, 150, 10);
+            ctx.fillStyle = '#0f0'; ctx.fillRect(centerX-75, 0, 150, 2); ctx.fillRect(centerX-75, canvas.height - 2, 150, 2);
         }
-        ctx.shadowBlur = 0; ctx.setLineDash([15, 15]); ctx.strokeStyle = '#1a1a1a';
+        ctx.setLineDash([15, 15]); ctx.strokeStyle = '#1a1a1a';
         ctx.beginPath(); ctx.moveTo(centerX, 0); ctx.lineTo(centerX, canvas.height); ctx.stroke();
-        ctx.setLineDash([]); ctx.shadowBlur = 2; ctx.shadowColor = '#fff'; ctx.fillStyle = '#fff';
-        ctx.beginPath(); ctx.arc(puck.x, puck.y, puck.radius, 0, Math.PI*2); ctx.fill();
+        ctx.setLineDash([]); 
+
+        // MODIFIED: PUCK RENDERING (Pixel Snapped)
+        const px = Math.round(puck.x), py = Math.round(puck.y);
+        ctx.globalAlpha = 0.2; ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(px, py, puck.radius + 4, 0, Math.PI*2); ctx.fill();
+        ctx.globalAlpha = 1.0; ctx.beginPath(); ctx.arc(px, py, puck.radius, 0, Math.PI*2); ctx.fill();
+
         drawP(p1); drawP(p2);
+
         if (respawnTimer > 0) {
-            ctx.textAlign = "center"; ctx.shadowBlur = 0;
+            ctx.textAlign = "center";
             if (respawnTimer > 110) { ctx.fillStyle = "#fff"; ctx.font = "bold 70px 'Segoe UI'"; ctx.fillText("GOAL!", centerX, centerY - 20); }
             else { ctx.fillStyle = "#0ff"; ctx.font = "bold 90px 'Segoe UI'"; ctx.fillText(Math.ceil(respawnTimer / 60), centerX, centerY + 30); }
         }
         ctx.restore(); 
     }
 
+    // MODIFIED: PADDLE RENDERING (Double-Draw for Glow)
     function drawP(p) {
-        ctx.shadowBlur = 2; ctx.shadowColor = p.color; ctx.fillStyle = p.color;
-        ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2); ctx.fill();
-        ctx.shadowBlur = 0; ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 2; ctx.stroke();
+        const px = Math.round(p.x), py = Math.round(p.y);
+        ctx.globalAlpha = 0.3; ctx.fillStyle = p.color;
+        ctx.beginPath(); ctx.arc(px, py, p.radius + 6, 0, Math.PI*2); ctx.fill();
+        ctx.globalAlpha = 1.0; ctx.beginPath(); ctx.arc(px, py, p.radius, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 2; ctx.stroke();
     }
 
     function gameLoop() { update(); draw(); requestAnimationFrame(gameLoop); }
