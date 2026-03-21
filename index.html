@@ -401,6 +401,10 @@
         document.getElementById('p1-pauses').innerText = pausesLeft.p1;
         document.getElementById('p2-pauses').innerText = pausesLeft.p2;
         
+        // Update the Arena Name based on the current round
+        const arenaNames = ["VELOCITY SURGE", "GRAVITY ORBIT", "NEON SHIFTER"];
+        document.getElementById('table-type').innerText = arenaNames[currentRound - 1] || "HYPERSPACE";
+        
         const isMatchOver = seriesPoints.p1 >= SERIES_TO_WIN || seriesPoints.p2 >= SERIES_TO_WIN;
         const playerKey = isHost ? 'p1' : 'p2';
         document.getElementById('pause-btn').disabled = pausesLeft[playerKey] <= 0 || isPaused || disconnected;
@@ -504,7 +508,7 @@
         }
         ctx.shadowBlur = 0; ctx.setLineDash([15, 15]); ctx.strokeStyle = '#1a1a1a';
         ctx.beginPath(); ctx.moveTo(centerX, 0); ctx.lineTo(centerX, canvas.height); ctx.stroke();
-        ctx.setLineDash([]); ctx.shadowBlur = 8; ctx.shadowColor = '#fff'; ctx.fillStyle = '#fff';
+        ctx.setLineDash([]); ctx.shadowBlur = 2; ctx.shadowColor = '#fff'; ctx.fillStyle = '#fff';
         ctx.beginPath(); ctx.arc(puck.x, puck.y, puck.radius, 0, Math.PI*2); ctx.fill();
         drawP(p1); drawP(p2);
         if (respawnTimer > 0) {
@@ -516,7 +520,7 @@
     }
 
     function drawP(p) {
-        ctx.shadowBlur = 12; ctx.shadowColor = p.color; ctx.fillStyle = p.color;
+        ctx.shadowBlur = 2; ctx.shadowColor = p.color; ctx.fillStyle = p.color;
         ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2); ctx.fill();
         ctx.shadowBlur = 0; ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 2; ctx.stroke();
     }
