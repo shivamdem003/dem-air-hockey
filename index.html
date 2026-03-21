@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Air Hockey - Pro Gravity Colosseum</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
@@ -17,9 +18,19 @@
             z-index: 10; flex-wrap: wrap; justify-content: center; 
         }
         
-        /* Hide menu automatically when in fullscreen */
+        /* Fullscreen Canvas Scaling & UI Hiding */
         :fullscreen #menu { display: none; }
         :-webkit-full-screen #menu { display: none; }
+        :fullscreen canvas { max-width: 100vw; max-height: 100vh; }
+        :-webkit-full-screen canvas { max-width: 100vw; max-height: 100vh; }
+
+        /* Fallback class for iOS pseudo-fullscreen */
+        .ios-fullscreen {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 9999;
+            background: #050505; display: flex; flex-direction: column; justify-content: center; align-items: center;
+        }
+        .ios-fullscreen #menu { display: none !important; }
+        .ios-fullscreen canvas { max-width: 100vw; max-height: 100vh; border: none; }
 
         .hud { 
             display: flex; justify-content: space-between; 
@@ -185,22 +196,37 @@
     const p2 = { x: 850, y: 300, vx: 0, vy: 0, radius: 32, color: '#f0f' };
     let goalY = (canvas.height - goalHeight) / 2, goalDir = 1;
 
-    // Touch support flag
-    let isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-
-    // Fullscreen Logic
+    // Fullscreen Logic with Mobile/iOS Support
     function toggleFullScreen() {
-        if (!document.fullscreenElement) {
-            document.documentElement.requestFullscreen().catch(err => {
-                console.log(`Error attempting to enable full-screen mode: ${err.message}`);
-            });
-            if (screen.orientation && screen.orientation.lock) {
-                screen.orientation.lock('landscape').catch(e => console.log("Orientation lock not supported or failed."));
+        const docEl = document.documentElement;
+        const isFullscreen = document.fullscreenElement || document.webkitFullscreenElement || document.body.classList.contains('ios-fullscreen');
+
+        if (!isFullscreen) {
+            if (docEl.requestFullscreen) {
+                docEl.requestFullscreen().catch(err => {
+                    console.log(`Standard fullscreen failed, triggering fallback: ${err.message}`);
+                    document.body.classList.add('ios-fullscreen');
+                });
+            } else if (docEl.webkitRequestFullscreen) { 
+                docEl.webkitRequestFullscreen();
+            } else {
+                document.body.classList.add('ios-fullscreen');
+                window.scrollTo(0, 0); 
             }
+
+            try {
+                if (screen.orientation && screen.orientation.lock) {
+                    screen.orientation.lock('landscape').catch(e => console.log("Orientation lock ignored by browser."));
+                }
+            } catch(e) {}
+            
         } else {
             if (document.exitFullscreen) {
                 document.exitFullscreen();
+            } else if (document.webkitExitFullscreen) { 
+                document.webkitExitFullscreen();
             }
+            document.body.classList.remove('ios-fullscreen');
         }
     }
 
@@ -342,7 +368,7 @@
         updateUI();
     }
 
-    // Input Handlers & Scaling
+    // Input Handlers & Scaling (Upgraded for Multi-touch)
     function getScaledPos(clientX, clientY) {
         const rect = canvas.getBoundingClientRect();
         const scaleX = canvas.width / rect.width;
@@ -357,36 +383,57 @@
     function handleInput(e) {
         if (!gameActive || isPaused || disconnected) return;
         
-        let clientX, clientY;
-        
+        // Prevent scrolling/zooming while interacting with the canvas
+        if (e.cancelable && e.type.startsWith('touch')) e.preventDefault();
+
         if (e.type.startsWith('touch')) {
-            clientX = e.touches[0].clientX;
-            clientY = e.touches[0].clientY;
-            if (e.cancelable) e.preventDefault();
+            // Process all active touches on the screen
+            for (let i = 0; i < e.touches.length; i++) {
+                const touch = e.touches[i];
+                const pos = getScaledPos(touch.clientX, touch.clientY);
+                
+                // Left side touch -> Player 1 (If host or offline)
+                if (pos.x < canvas.width / 2 && (isHost || isOffline)) {
+                    p1.vx = pos.x - p1.x; p1.vy = pos.y - p1.y;
+                    p1.x = Math.min(pos.x, canvas.width/2 - p1.radius);
+                    p1.y = Math.max(p1.radius, Math.min(canvas.height - p1.radius, pos.y));
+                    if (currentRound === 2) applyCircleConstraint(p1, "left");
+                } 
+                // Right side touch -> Player 2
+                else if (pos.x >= canvas.width / 2) {
+                    // P2 acts as normal client in multiplayer
+                    if (!isHost && !isOffline) {
+                        p2.x = Math.max(pos.x, canvas.width/2 + p2.radius);
+                        p2.y = Math.max(p2.radius, Math.min(canvas.height - p2.radius, pos.y));
+                        if (currentRound === 2) applyCircleConstraint(p2, "right");
+                        if (conn && conn.open) conn.send({ x: p2.x, y: p2.y });
+                    }
+                    // NOTE: If you add true local 2-player vs a human later, 
+                    // you would update p2.x and p2.y here while isOffline is true. 
+                    // Currently, offline means vs AI, so we ignore right-side touches to let AI play.
+                }
+            }
         } else {
-            clientX = e.clientX;
-            clientY = e.clientY;
-        }
-
-        const pos = getScaledPos(clientX, clientY);
-
-        if (isHost || isOffline) {
-            p1.vx = pos.x - p1.x; p1.vy = pos.y - p1.y;
-            p1.x = Math.min(pos.x, canvas.width/2 - p1.radius);
-            p1.y = Math.max(p1.radius, Math.min(canvas.height - p1.radius, pos.y));
-            if (currentRound === 2) applyCircleConstraint(p1, "left");
-        } else {
-            p2.x = Math.max(pos.x, canvas.width/2 + p2.radius);
-            p2.y = Math.max(p2.radius, Math.min(canvas.height - p2.radius, pos.y));
-            if (currentRound === 2) applyCircleConstraint(p2, "right");
-            if (conn && conn.open) conn.send({ x: p2.x, y: p2.y });
+            // Mouse logic for desktop
+            const pos = getScaledPos(e.clientX, e.clientY);
+            if (isHost || isOffline) {
+                p1.vx = pos.x - p1.x; p1.vy = pos.y - p1.y;
+                p1.x = Math.min(pos.x, canvas.width/2 - p1.radius);
+                p1.y = Math.max(p1.radius, Math.min(canvas.height - p1.radius, pos.y));
+                if (currentRound === 2) applyCircleConstraint(p1, "left");
+            } else {
+                p2.x = Math.max(pos.x, canvas.width/2 + p2.radius);
+                p2.y = Math.max(p2.radius, Math.min(canvas.height - p2.radius, pos.y));
+                if (currentRound === 2) applyCircleConstraint(p2, "right");
+                if (conn && conn.open) conn.send({ x: p2.x, y: p2.y });
+            }
         }
     }
 
     canvas.addEventListener('mousemove', handleInput);
     canvas.addEventListener('touchstart', handleInput, { passive: false });
     canvas.addEventListener('touchmove', handleInput, { passive: false });
-    canvas.addEventListener('touchend', handleInput, { passive: false });
+    // canvas.addEventListener('touchend', handleInput, { passive: false }); // Not strictly needed for position tracking
 
     // Physics Engine
     function applyCircleConstraint(p, side) {
@@ -522,19 +569,13 @@
         const s = matchStats[pKey];
         const isWinner = seriesPoints[pKey] >= SERIES_TO_WIN;
         
-        // Calculate accuracy safely
         const accuracy = s.totalHits > 0 ? (s.goals / s.totalHits) : 0;
-        
-        // Adjusted weights for better scaling across a long series
         let score = (s.goals * 30) + (s.saves * 10) - (s.ownGoals * 50) + (accuracy * 100);
         
-        // Give a much stronger bonus for winning the series to separate the players
         if (isWinner) score += 200;
         
-        // Save the rounded final score back to the stats object
         s.finalScore = Math.max(0, Math.round(score));
 
-        // Stricter thresholds to ensure rank separation
         if (score >= 1200) return "S";
         if (score >= 850) return "A";
         if (score >= 500) return "B";
