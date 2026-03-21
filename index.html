@@ -521,17 +521,24 @@
     function calculateGrade(pKey) {
         const s = matchStats[pKey];
         const isWinner = seriesPoints[pKey] >= SERIES_TO_WIN;
+        
+        // Calculate accuracy safely
         const accuracy = s.totalHits > 0 ? (s.goals / s.totalHits) : 0;
-        let score = (s.goals * 25) + (s.saves * 12) - (s.ownGoals * 45) + (accuracy * 100);
         
-        if (isWinner) score += 50;
+        // Adjusted weights for better scaling across a long series
+        let score = (s.goals * 30) + (s.saves * 10) - (s.ownGoals * 50) + (accuracy * 100);
         
+        // Give a much stronger bonus for winning the series to separate the players
+        if (isWinner) score += 200;
+        
+        // Save the rounded final score back to the stats object
         s.finalScore = Math.max(0, Math.round(score));
 
-        if (score >= 500) return "S";
-        if (score >= 350) return "A";
-        if (score >= 200) return "B";
-        if (score >= 100) return "C";
+        // Stricter thresholds to ensure rank separation
+        if (score >= 1200) return "S";
+        if (score >= 850) return "A";
+        if (score >= 500) return "B";
+        if (score >= 250) return "C";
         return "D";
     }
 
