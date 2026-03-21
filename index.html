@@ -270,8 +270,8 @@
         if (respawnTimer > 0) {
             respawnTimer--;
             if (respawnTimer === 0) {
-                puck.dx = (Math.random() > 0.5 ? 3.5 : -3.5);
-                puck.dy = (Math.random() - 0.5) * 5;
+                puck.dx = (Math.random() > 0.5 ? 1.5 : -1.5);
+                puck.dy = (Math.random() - 0.5) * 2;
                 lastHitter = 0;
             }
             syncData(); return;
