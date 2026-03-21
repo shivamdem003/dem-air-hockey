@@ -132,6 +132,10 @@
                     <div class="rank-letter" id="rank-p2">-</div>
                 </div>
 
+                <div class="stat-val p1-stat" id="stat-p1-score" style="font-size: 2rem;">0</div>
+                <div class="stat-label" style="color: #fff; font-weight: bold;">Final Score</div>
+                <div class="stat-val p2-stat" id="stat-p2-score" style="font-size: 2rem;">0</div>
+
                 <div class="stat-val p1-stat" id="stat-p1-goals">0</div>
                 <div class="stat-label">Total Goals</div>
                 <div class="stat-val p2-stat" id="stat-p2-goals">0</div>
@@ -172,8 +176,8 @@
     let respawnTimer = 0, lastHitter = 0;
 
     let matchStats = {
-        p1: { goals: 0, saves: 0, ownGoals: 0, totalHits: 0, rank: "C" },
-        p2: { goals: 0, saves: 0, ownGoals: 0, totalHits: 0, rank: "C" }
+        p1: { goals: 0, saves: 0, ownGoals: 0, totalHits: 0, rank: "C", finalScore: 0 },
+        p2: { goals: 0, saves: 0, ownGoals: 0, totalHits: 0, rank: "C", finalScore: 0 }
     };
 
     const puck = { x: 500, y: 300, dx: 0, dy: 0, radius: 15, friction: 0.993 };
@@ -347,7 +351,7 @@
         return {
             x: (clientX - rect.left) * scaleX,
             y: (clientY - rect.top) * scaleY
-        };
+        }
     }
 
     function handleInput(e) {
@@ -433,11 +437,11 @@
         if (scoredOnPlayer === 1) {
             scores.p2++;
             if (lastHitter === 1) matchStats.p1.ownGoals++;
-            else if (lastHitter === 2) matchStats.p2.goals++;
+            else matchStats.p2.goals++;
         } else {
             scores.p1++;
             if (lastHitter === 2) matchStats.p2.ownGoals++;
-            else if (lastHitter === 1) matchStats.p1.goals++;
+            else matchStats.p1.goals++;
         }
         shakeIntensity = 15; resetPuck();
     }
@@ -519,11 +523,15 @@
         const isWinner = seriesPoints[pKey] >= SERIES_TO_WIN;
         const accuracy = s.totalHits > 0 ? (s.goals / s.totalHits) : 0;
         let score = (s.goals * 25) + (s.saves * 12) - (s.ownGoals * 45) + (accuracy * 100);
+        
         if (isWinner) score += 50;
-        if (score >= 600) return "S";
-        if (score >= 450) return "A";
-        if (score >= 300) return "B";
-        if (score >= 150) return "C";
+        
+        s.finalScore = Math.max(0, Math.round(score));
+
+        if (score >= 500) return "S";
+        if (score >= 350) return "A";
+        if (score >= 200) return "B";
+        if (score >= 100) return "C";
         return "D";
     }
 
@@ -563,6 +571,9 @@
                 r1.innerText = p1G; r2.innerText = p2G;
                 r1.className = `rank-letter rank-${p1G.toLowerCase()}`;
                 r2.className = `rank-letter rank-${p2G.toLowerCase()}`;
+
+                document.getElementById('stat-p1-score').innerText = matchStats.p1.finalScore;
+                document.getElementById('stat-p2-score').innerText = matchStats.p2.finalScore;
 
                 document.getElementById('stat-p1-goals').innerText = matchStats.p1.goals;
                 document.getElementById('stat-p2-goals').innerText = matchStats.p2.goals;
@@ -608,7 +619,10 @@
 
     function resetFullMatch() {
         seriesPoints = { p1: 0, p2: 0 }; scores = { p1: 0, p2: 0 };
-        matchStats = { p1: { goals: 0, saves: 0, ownGoals: 0, totalHits: 0, rank: "C" }, p2: { goals: 0, saves: 0, ownGoals: 0, totalHits: 0, rank: "C" } };
+        matchStats = { 
+            p1: { goals: 0, saves: 0, ownGoals: 0, totalHits: 0, rank: "C", finalScore: 0 }, 
+            p2: { goals: 0, saves: 0, ownGoals: 0, totalHits: 0, rank: "C", finalScore: 0 } 
+        };
         currentRound = 1; gameActive = true; lastWinnerLabel = ""; pausesLeft = { p1: 4, p2: 4 };
         disconnected = false; document.getElementById('restart-btn').style.display = 'none';
         resetPuck(); updateUI();
